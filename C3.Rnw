@@ -1,0 +1,324 @@
+<<parent3, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+
+\section{Implementing Mean Reversion Strategies}
+This chapter begins with a very interesting take on the input to a cointegration exercise. What can be the input ? raw prices or log prices orratio of two stocks ?  The first variant of pair trading that is typically seen is the ratio trade, compute the ratio between two stocks and trade the spread. The stocks might not be cointegrating but the spread might be mean reverting in a shorter time frame. In fact this was a recurrent theme in almost all the pair reports that I used to see from Brokerage houses. These were pushed under the title cointegrated pairs. I always use to wonder why should a ratio of two stocks be stationary ? Equivalently, why should the hedge ratio between two stocks be 1 ? This chapter kind of nails that question down by saying that ratio based trading is convenient and works if the spread is stationary on a short time frame. So, given a choice between a cointegrating vector based trading and ratio based trading, which one should be selected? The author says he has no clear answer except his backtesting shows that it is better to take cointegration based hedge than to rely on ratio based trades.
+
+\vskip .1in
+
+A cointegration analysis is done with Gold ETF and Oil prices based on prices, log prices and ratio test. Here is the R code for the same
+
+<<c3v1>>=
+pathname        <- file.path(".", "/data/inputData_ETF.mat")
+data            <- readMat(pathname)
+idxa            <- which(unlist(data$syms)=="GLD")
+idxb            <- which(unlist(data$syms)=="USO")
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format= "%Y%m%d")
+x               <- data$cl[,idxa]
+y               <- data$cl[,idxb]
+pairs           <- xts(cbind(x,y),tday)
+colnames(pairs) <- c("GLD","USO")
+get.beta        <- function(z){
+           z    <- as.data.frame(z)
+           coef(lm(z[,2]~z[,1]))[2]
+}
+
+roll.beta       <- as.xts(rollapplyr(pairs, width = 20, by.column = FALSE, get.beta))
+data            <- merge(pairs,roll.beta)
+data$spread     <- data[,2] - data[,3]*data[,1]
+@
+
+
+<<c3f1,fig.cap="Spread between USO and GLD Using a Changing Hedge Ratio", opts.label="fig.large">>=
+chart.TimeSeries(data$spread,xlab = "", main="",colorset = c(4),ylab="USO - hedgeratio*GLD")
+@
+
+<<c3v2>>=
+roll.mu             <- as.xts(rollapplyr(data$spread,width=20, mean))
+roll.sd             <- as.xts(rollapplyr(data$spread,width=20, sd))
+data                <- merge(data, roll.mu, roll.sd)
+colnames(data)      <- c("x","y","roll.beta","spread","mu","sd")
+data$dev            <- - with(data, (spread-mu)/sd)
+positions           <- cbind(data$dev * data$y, data$dev * (-data$roll.beta)*data$x)
+colnames(positions) <- c("pos.y","pos.x")
+returns             <- Return.calculate(data[,c("y","x")])
+colnames(returns)   <- c("y.ret","x.ret")
+data                <- merge(data, positions)
+data                <- merge(data, returns)
+data$lx.ret         <- lag(data$x.ret,-1)
+data$ly.ret         <- lag(data$y.ret,-1)
+daily.ret           <- with(data, (pos.y*ly.ret + pos.x*lx.ret) /(abs(pos.x)+abs(pos.y)))
+daily.ret[is.na(daily.ret)] <- 0
+(APR                <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe             <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+These APR and Sharpe numbers match with that given in the book. However the
+problem is that the first 38 days of the strategy because these data points
+get consumed in calculating the rolling beta and rolling spread mean and sd of the
+strategy. Also the last day of the dataset should be removed because of look-ahead bias.Hence the correct numbers should be 
+<<c3v3>>=
+daily.ret           <- daily.ret[39:(length(daily.ret)-1)]
+(APR                <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe             <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+Subsequently, the author uses log prices to do the analysis
+<<c3v4>>=
+pathname            <- file.path(".", "/data/inputData_ETF.mat")
+data                <- readMat(pathname)
+idxa                <- which(unlist(data$syms)=="GLD")
+idxb                <- which(unlist(data$syms)=="USO")
+tday                <- data$tday
+tday                <- as.Date(as.character(tday),format= "%Y%m%d")
+x                   <- data$cl[,idxa]
+y                   <- data$cl[,idxb]
+pairs               <- xts(cbind(x,y),tday)
+colnames(pairs)     <- c("GLD","USO")
+get.beta            <- function(z){
+           z        <- as.data.frame(z)
+           coef(lm(z[,2]~z[,1]))[2]
+}
+
+roll.beta           <- as.xts(rollapplyr(log(pairs), width = 20, by.column = FALSE, get.beta))
+data                <- merge(pairs,roll.beta)
+data$spread         <- log(data[,2]) - data[,3]*log(data[,1])
+roll.mu             <- as.xts(rollapplyr(data$spread,width=20, mean))
+roll.sd             <- as.xts(rollapplyr(data$spread,width=20, sd))
+data                <- merge(data, roll.mu, roll.sd)
+colnames(data)      <- c("x","y","roll.beta","spread","mu","sd")
+data$dev            <- - with(data, (spread-mu)/sd)
+positions           <- cbind(data$dev , data$dev * (-data$roll.beta))
+colnames(positions) <- c("pos.y","pos.x")
+returns             <- Return.calculate(data[,c("y","x")])
+colnames(returns)   <- c("y.ret","x.ret")
+data                <- merge(data, positions)
+data                <- merge(data, returns)
+data$lx.ret         <- lag(data$x.ret,-1)
+data$ly.ret         <- lag(data$y.ret,-1)
+daily.ret           <- with(data, (pos.y*ly.ret + pos.x*lx.ret) /(abs(pos.x)+abs(pos.y)))
+daily.ret[is.na(daily.ret)] <- 0
+(APR                <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe             <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+Even though the APR and sharpe numbers match with that of the book, I will not repeat the code here where the above APR and Sharpe numbers need to be adjusted taking into account that the first 38 days and the last trading day of the dataset needs to be removed.
+
+\vskip .1in
+In the next section, the author uses ratio of prices to the analysis
+
+<<c3v5>>=
+pathname             <- file.path(".", "/data/inputData_ETF.mat")
+data                 <- readMat(pathname)
+idxa                 <- which(unlist(data$syms)=="GLD")
+idxb                 <- which(unlist(data$syms)=="USO")
+tday                 <- data$tday
+tday                 <- as.Date(as.character(tday),format= "%Y%m%d")
+x                    <- data$cl[,idxa]
+y                    <- data$cl[,idxb]
+pairs                <- xts(cbind(x,y),tday)
+colnames(pairs)      <- c("GLD","USO")
+pairs$ratio          <- pairs[,2]/pairs[,1]
+data                 <- pairs
+
+roll.mu              <- as.xts(rollapplyr(data$ratio,width=20, mean))
+roll.sd              <- as.xts(rollapplyr(data$ratio,width=20, sd))
+data                 <- merge(data, roll.mu, roll.sd)
+colnames(data)       <- c("x","y","ratio","mu","sd")
+data$dev             <- - with(data, (ratio-mu)/sd)
+positions            <- cbind(data$dev , data$dev * (-1))
+colnames(positions)  <- c("pos.y","pos.x")
+returns              <- Return.calculate(data[,c("y","x")])
+colnames(returns)    <- c("y.ret","x.ret")
+data                 <- merge(data, positions)
+data                 <- merge(data, returns)
+data$lx.ret          <- lag(data$x.ret,-1)
+data$ly.ret          <- lag(data$y.ret,-1)
+daily.ret            <- with(data, (pos.y*ly.ret + pos.x*lx.ret) /(abs(pos.x)+abs(pos.y)))
+daily.ret[is.na(daily.ret)] <- 0
+(APR                 <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe              <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+<<c3f2,fig.cap="Ratio = USO/GLD", opts.label="fig.large">>=
+chart.TimeSeries(pairs$ratio ,xlab = "", main="",colorset = c(4),ylab="USO/GLD")
+@
+
+So, the backtesting results for the three kinds of inputs, i.e. raw prices, log prices and ratio of two prices are
+
+\begin{center}
+\begin{tabular}{l | c c }
+\hline
+Input & APR & Sharpe \\
+\hline \hline
+Raw Prices & 10.9\,\% & 0.59 \\
+Log Prices & 9\,\% & 0.5 \\
+Ratio & -14\,\% & -0.8 \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Bollinger Bands}
+Uptil this point of the book, the author uses Linear Trading Strategy for cointegrated stocks. In the practical world though, linear trading strategy cannot be implemented as one does not know beforehand the amount of capital that would be deployed. 
+Using Bollinger Bands , one enters and exits a long or a short position. One can optimize the dataset to get a sense of these long entry and short entry levels for a pair.
+The author wants to merely explain this stuff and hence chooses a simple level of 1 and -1 for short and long levels. 
+
+<<c3v6>>=
+pathname            <- file.path(".", "/data/inputData_ETF.mat")
+data                <- readMat(pathname)
+idxa                <- which(unlist(data$syms)=="GLD")
+idxb                <- which(unlist(data$syms)=="USO")
+tday                <- data$tday
+tday                <- as.Date(as.character(tday),format= "%Y%m%d")
+x                   <- data$cl[,idxa]
+y                   <- data$cl[,idxb]
+pairs               <- xts(cbind(x,y),tday)
+colnames(pairs)     <- c("GLD","USO")
+get.beta            <- function(z){
+           z        <- as.data.frame(z)
+           coef(lm(z[,2]~z[,1]))[2]
+}
+
+roll.beta           <- as.xts(rollapplyr(pairs, width = 20, by.column = FALSE, get.beta))
+data                <- merge(pairs,roll.beta)
+data$spread         <- data[,2] - data[,3]*data[,1]
+roll.mu             <- as.xts(rollapplyr(data$spread,width=20, mean))
+roll.sd             <- as.xts(rollapplyr(data$spread,width=20, sd))
+data                <- merge(data, roll.mu, roll.sd)
+colnames(data)      <- c("x","y","roll.beta","spread","mu","sd")
+data$dev            <- with(data, (spread-mu)/sd)
+
+longs.entry         <- data$dev < -1
+longs.exit          <- data$dev >= 0
+long.positions      <- rep(NA, length(data$dev))
+long.positions[longs.entry] <- 1
+long.positions[longs.exit]  <- 0
+long.positions      <- xts(long.positions, tday)
+long.positions      <- na.locf(long.positions)
+
+
+shorts.entry        <- data$dev > 1
+shorts.exit         <- data$dev <= 0
+short.positions     <- rep(NA, length(data$dev))
+short.positions[shorts.entry] <- -1
+short.positions[shorts.exit]  <- 0
+short.positions     <- xts(short.positions, tday)
+short.positions     <- na.locf(short.positions)
+
+total.positions     <- long.positions + short.positions
+positions           <- cbind(total.positions * data$y, total.positions * (-data$roll.beta)*data$x)
+colnames(positions) <- c("pos.y","pos.x")
+returns             <- Return.calculate(data[,c("y","x")])
+colnames(returns)   <- c("y.ret","x.ret")
+data                <- merge(data, positions)
+data                <- merge(data, returns)
+data$lx.ret         <- lag(data$x.ret,-1)
+data$ly.ret         <- lag(data$y.ret,-1)
+daily.ret           <- with(data, (pos.y*ly.ret + pos.x*lx.ret) /(abs(pos.x)+abs(pos.y)))
+daily.ret[is.na(daily.ret)] <- 0
+(APR                <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe             <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+The APR and sharpe have improved as compared to the old strategies.
+<<c3f3,fig.cap="Cumulative Returns of Bollinger Band Strategy on GLD-USO", opts.label="fig.large">>=
+chart.TimeSeries(cumprod(1+daily.ret)-1 ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+\vskip .1in
+
+The chapter further discusses ``averaging-in'', i.e. scaling your position in a pair as it moves away from the mean as it nears the mean. There is a link to an article that seems to say that going for all in is a better alternative. However the author feels that averaging-in yields a better sharpe ratio and is preferred way to trade in a volatile market.
+
+\subsection{Kalman Filter as Dynamic Linear Regression}
+All the previous strategies involved calculating the hedge ratio over a fixed lookback period. This has the disadvantage that if the look-back period is short, then the hedge ratio itself can be volatile. To get over this problem, KF framework is introduced. The basic funda behind using a state space framework is that you assume that the hedge ratio is a state variable and all you get to see is the observation data. Based on the observation data, you predict the hedge ratio as soon as a new observation data is realized. The chapter mentions the math behind it and implements using Matlab. Here is the R version of it. 
+
+<<c3v7>>=
+pathname        <- file.path(".", "/data/inputData_ETF.mat")
+data            <- readMat(pathname)
+idxa            <- which(unlist(data$syms)=="EWA")
+idxb            <- which(unlist(data$syms)=="EWC")
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+x               <- data$cl[,idxa]
+y               <- data$cl[,idxb]
+pairs           <- xts(cbind(x,y),tday)
+colnames(pairs) <- c("EWA","EWC")
+mod             <- dlmModReg(x)
+
+#Initial Conditions 
+diag(C0(mod))   <- c(1E-16,1E-16)
+
+#Covariance of state and observation equation
+V(mod)          <- 0.001
+delta           <- 0.0001
+diag(W(mod))    <- delta/(1-delta)
+
+filtered        <- dlmFilter(y,mod)
+smoothed        <- dlmSmooth(filtered)
+mu              <- xts( smoothed$s[,1][-1], tday )
+beta            <- xts( smoothed$s[,2][-1], tday )
+pred.error      <- pairs[,2] - xts( filtered$f, tday )
+cov             <- dlmSvd2var(filtered$U.R, filtered$D.R)
+X               <- cbind(1,x)
+n               <- length(x)
+dev             <- sqrt(sapply(1:n,function(i){X[i,]%*%cov[[i]]%*%X[i,]}))
+@
+
+<<c3f4,fig.cap="Kalman Filter Estimate of the Slope between EWC (y) and EWA (x)", opts.label="fig.large">>=
+chart.TimeSeries(beta,xlab = "",ylim=c(0,1.6), colorset = c(4),ylab="slope",main="")
+@
+
+<<c3f5,fig.cap="Kalman Filter Estimate of the Intercept between EWC (y) and EWA (x)", opts.label="fig.large">>=
+chart.TimeSeries(mu,xlab = "", colorset = c(4),ylab="slope",main = "")
+@
+
+
+<<c3f6,fig.cap="Measuremen t Prediction Error e(t) and Standard Deviation of e(t)", opts.label="fig.large">>=
+chart.TimeSeries(cbind(dev,pred.error)[-1,],xlab = "", col = c("blue","grey"),ylab="",main = "")
+@
+
+<<c3v8>>=
+longs.entry           <- pred.error < -dev 
+longs.exit            <- pred.error > -dev 
+long.positions        <- rep(NA, length(dev))
+long.positions[longs.entry] <- 1
+long.positions[longs.exit]  <- 0
+long.positions        <- xts(long.positions, tday)
+long.positions        <- na.locf(long.positions)
+
+shorts.entry        <- pred.error > dev 
+shorts.exit         <- pred.error < dev 
+short.positions     <- rep(NA, length(dev))
+short.positions[shorts.entry] <- -1
+short.positions[shorts.exit]  <- 0
+short.positions     <- xts(short.positions, tday)
+short.positions     <- na.locf(short.positions)
+
+total.positions     <- long.positions + short.positions
+positions           <- cbind(total.positions * pairs$EWC, total.positions * -beta*pairs$EWA)
+colnames(positions) <- c("pos.y","pos.x")
+returns             <- Return.calculate(pairs[,c("EWC","EWA")])
+colnames(returns)   <- c("EWC.ret","EWA.ret")
+data                <- pairs
+data                <- merge(data, positions)
+data                <- merge(data, returns)
+data$lx.ret         <- lag(data$EWA.ret,-1)
+data$ly.ret         <- lag(data$EWC.ret,-1)
+daily.ret           <- with(data, (pos.y*ly.ret + pos.x*lx.ret) /(abs(pos.x)+abs(pos.y)))
+daily.ret[is.na(daily.ret)] <- 0
+(APR                <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe             <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+The APR and sharpe have improved as compared to the old strategies.
+
+<<c3f7,fig.cap="Cumulative Returns of Kalman Filter Strategy on EWA-EWC", opts.label="fig.large">>=
+chart.TimeSeries(cumprod(1+daily.ret)-1 ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+
+The chapter also touches upon the idea of using Kalman Filter as a Market Making Model.It ends with a brief section on sensitivity of outliers to a mean revertion strategy. Nothing much mentioned here except a few references to some online papers. 
+\newpage

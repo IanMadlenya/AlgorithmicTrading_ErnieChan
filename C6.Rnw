@@ -1,0 +1,122 @@
+<<parent6, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+\section{Interday Momentum Strategies}
+
+The chapter starts off by listing four main causes of momentum:
+\vskip .1in
+\begin{compactenum}
+\item For futures, the persistence of roll returns, especially of their signs.
+\item The slow diffusion, analysis, and acceptance of new information.
+\item The forced sales or purchases of assets of various type of funds.
+\item Market manipulation by high-frequency traders.
+\end{compactenum}
+
+\vskip .1in
+There are two types of momentum amongst time series, \textit{time series momentum}
+and \textit{cross-sectional momentum}. The former means the past returns of a price are positively correlated with future returns and the latter deals with the relative performance of a price series in relation to other time series. 
+
+\subsection{Tests for Time Series Momentum}
+Past returns are correlated to future returns needs to be quantified and hence the author calculates the correlation of returns for various past and future time windoes and reports the correlation coefficient between them.
+
+<<c6v1>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_20120511.mat")
+data            <- readMat(pathname)
+idx             <- which(unlist(data$syms)=="TU")
+tday            <- data$tday[,idx]
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+cl              <- xts(data$cl[,idx],tday)
+lookback        <- c(25,60,120,250)
+holddays        <- c(1,5,10,25,60,120,250)
+result          <- matrix(ncol=4)
+colnames(result) <- c("Lookback","Holdingdays","cor","pval")
+n               <- dim(cl)[1]
+for(lk in lookback){
+  for(hd in holddays){
+      temp             <- cbind(cl, lag(cl,lk),lag(cl,-hd))
+      if(lk >= hd ){
+        idx            <- seq( lk +1, n, by = hd )  
+      }else{
+        idx            <- seq( lk +1, n, by = lk )  
+      }
+      temp$hret        <- (temp[,3] - temp[,1])/temp[,1]
+      temp$lret        <- (temp[,1] - temp[,2])/temp[,2]
+      temp             <- temp[idx,] 
+      temp             <- temp[!is.na(temp$hret) & !is.na(temp$lret),]
+      correl           <- cor(temp$hret,temp$lret)
+      pval             <- cor.test(temp$hret,temp$lret)$p.value
+      res              <- c(lk,hd,correl,pval)
+      result           <- rbind(result,res)
+      
+  }
+}
+result           <- result[-1,]
+rownames(result) <- NULL
+@
+
+<<results='asis',echo=FALSE>>=
+print(xtable(result, digits=c(0,0,0,4,4),
+    caption="Correlations between TU Returns of Different Time Frames."),
+      include.rownames=FALSE)
+@
+
+We see that there is a compromise between the correlation coeffi cient
+and the p-value. The following (look-back, holding days) pairs off er some of
+the best compromises: (60, 10), (60, 25), (250, 10), (250, 25), (250, 60),
+(250, 120). Of course, from a trading point of view, we prefer as short a
+holding period as possible as those tend to generate the best Sharpe ratios.
+The author says that he has found the best pair candidates are usually (60, 10), (250, 10), and (250, 25).
+
+\subsection{Time Series Strategies}
+
+<<c6v2>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_20120511.mat")
+data            <- readMat(pathname)
+idx             <- which(unlist(data$syms)=="TU")
+tday            <- data$tday[,idx]
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+cl              <- xts(data$cl[,idx],tday)
+lk              <- 250
+hl              <- 25
+data            <- cbind(cl, lag(cl,lk))
+n               <- dim(data)[1]
+data$pos        <- ifelse(data[,1] > data[,2],1,-1)
+data$bm         <- lag(data[,1],-1)
+data$ret        <- data$pos*(data$bm - data[,1])/(data[,1])
+daily.ret       <- data$ret
+daily.ret[is.na(daily.ret)]     <- 0
+(APR            <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe         <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+(MaxDD          <- maxDrawdown(daily.ret))
+@
+
+<<c6f1,fig.cap="Equity Curve of TU Momentum Strategy.", opts.label="fig.large">>=
+chart.TimeSeries((cumprod(1+daily.ret)-1) ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+
+Here are some of the main points that the chapter covers :
+
+\begin{compactitem}
+\item Why do many futures returns exhibit serial correlations? And why do
+these serial correlations occur only at a fairly long time scale? The explanation
+lies in the roll return component of the total return of futures. Typically, the sign of roll returns does not vary very often. In other words, the futures stay in contango or backwardation over long periods of time. The spot returns, however, can vary very rapidly in both sign and magnitude. So if we hold a future over a long period of time, and if the average roll returns dominate the average total returns, we will fi nd serial correlation of total returns.
+\item Futures momentum strategy :Using lagged roll return as a signal instead of total return.
+\item Alexander Filter strategy.
+\item The combination of mean-reverting and momentum rules may work better than each strategy by itself.
+\item There is a ready-made index that is composed of 24 futures. 
+\item Since the crisis,many momentum strategies are not performign well.
+\item To extract roll return , do a long short with the futures and the eft that represent the same asset.
+\item It is harder to create profi table momentum strategies, and those
+that are profi table tend to have lower Sharpe ratios than mean-reversal strategies.
+\item Momentum strategies for futures or stocks tend to perform
+miserably for several years after a financial crisis.
+\item Ease of risk management for momentum strategies.
+\item Adding momentum strategies to a portfolio of meanreverting
+strategies allows us to achieve higher Sharpe ratios and smaller
+drawdowns than either type of strategy alone.
+\item Signal gets arbed by the end of the day. Hence momentum strategies are more tuned for intra day strategies.
+\end{compactitem}
+
+\newpage

@@ -1,0 +1,178 @@
+<<parent5, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+\section{Mean Reversion for Currencies and Futures}
+
+\subsection{Trading Currency Cross-Rates}
+This section covers some specific aspects of pairs trading in currencies. After reading this section I got a feeling that it is more important to identify the correct instruments for setting up a cointegrating equation. It is easy to make a mistake while backtesting the strategy. 
+
+\subsection{Trading Futures Calendar Spread}
+Futures contracts with diff erent expiration dates (or "maturities") have different
+prices, and they have slightly diff erent returns. Pairing up futures contracts
+with diff erent maturities creates what are known as calendar spreads.
+Since both legs of a calendar spread track the price of the underlying asset,
+one would think that calendar spreads potentially off er good opportunities
+for mean reversion trading. But in reality they do not generally mean-revert.
+
+In any futures trading, there are two types of returns that one must be cognizant about, the spot return and the roll return. A good model for the same is 
+\[
+F(t,T) = S(t) e^{\gamma(t-T)} = ce^{\alpha(t)} e^{\gamma(t-T)} 
+\] 
+This implies
+
+\[
+{\partial(\log F(t,T)) \over \partial t }= \alpha + \gamma
+\]
+
+\[
+{- \partial(\log F(t,T)) \over \partial T }= \gamma
+\]
+
+\textit{ total returns = spot return and roll return }
+So, one needs to decompose the returns in to spot returns and roll returns. 
+For spot return, you have to regress the log futures price with respect to time. 
+
+<<c5v1>>=
+pathname             <- file.path(".", "/data/inputDataDaily_CL_20120502.mat")
+data                 <- readMat(pathname)
+tday                 <- data$tday
+tday                 <- as.Date(as.character(tday),format ="%Y%m%d")
+cl                   <- xts(data$cl[,],tday)
+n                    <- dim(cl)[1]
+i                    <- 1
+gamma                <- rep(NA,n)
+
+for(i in seq_len(n)){
+  idx                <- which( !is.na(cl[i,] ) )
+  if(length(idx)>=5){
+      idx.next       <- (idx+1)[1:4]
+      idx.diff       <- all(!is.na(cl[i,idx.next] ))
+      if(idx.diff){
+        temp         <- cbind(t(coredata(cl[i,idx[1:5]])),1:5)
+        gamma[i]     <- -coef(lm(log(temp[,1]) ~ temp[,2] ))[2]*12
+      }
+  }
+}
+gamma.xts            <- xts(gamma,tday)
+(roll.returns        <- mean(gamma.xts,na.rm=T))
+gamma.xts            <- gamma.xts[!is.na(gamma.xts[,1])]
+@
+
+<<c5f1,fig.cap="Values of the Roll Return gamma for CL.Positive values indicate backwardation and negative values indicate contango.", opts.label="fig.large">>=
+chart.TimeSeries(gamma.xts ,xlab = "", main="",colorset = c(4),ylab="gamma")
+@
+
+
+The same analysis is carried out for other futures. Here is the code that
+replicates the MATLAB results
+<<c5v2>>=
+get.roll.spot.returns <- function(file.name)
+{
+  fnamepath            <- paste("/data/",file.name, sep = "" )
+  pathname             <- file.path(".", fnamepath)
+
+  data                 <- readMat(pathname)
+  tday                 <- data$tday
+  tday                 <- as.Date(as.character(tday),format ="%Y%m%d")
+  cl                   <- xts(data$cl[,],tday)
+  n                    <- dim(cl)[1]
+  
+  idx.spot             <- which(unlist(data$contracts)=="0000$")
+  spot                 <- xts(cl[,idx.spot],tday)
+  spot                 <- spot[!is.na(spot)]    
+  t                    <- 1:length(spot)
+  
+  
+  i                    <- 1
+  cl                   <- xts(cl[,-idx.spot],tday)
+  n                    <- dim(cl)[1]
+  gamma                <- rep(NA,n)
+  
+  for(i in seq_len(n)){
+    idx                <- which( !is.na(cl[i,] ) )
+    if(length(idx)>=5){
+        idx.next       <- (idx+1)[1:4]
+        idx.diff       <- all(!is.na(cl[i,idx.next] ))
+        if(idx.diff){
+          temp         <- cbind(t(coredata(cl[i,idx[1:5]])),1:5)
+          gamma[i]     <- -coef(lm(log(temp[,1]) ~ temp[,2] ))[2]*12
+        }
+    }
+  }
+  gamma.xts <- xts(gamma,tday)
+  spot.returns        <- coef(lm(log(spot[,1])~t))[2]*252
+  roll.returns        <- mean(gamma.xts,na.rm=T)
+  cbind(spot.returns,roll.returns)
+}
+BR                   <- get.roll.spot.returns("inputDataDaily_BR_20120813.mat")
+HG                   <- get.roll.spot.returns("inputDataDaily_HG_20120813.mat")
+TU                   <- get.roll.spot.returns("inputDataDaily_TU_20120813.mat")
+C                    <- get.roll.spot.returns("inputDataDaily_C2_20120813.mat")
+res                  <- rbind(BR,C,HG,TU)
+rownames(res)        <- c("BR","HG","TU","C")
+colnames(res)        <- c("Spot returns","Roll returns")
+@
+
+<<results='asis',echo=FALSE>>=
+xtable(res, caption = "Annualized Average Spot and Roll Returns for Various Futures",digits = 4)
+@
+
+
+\subsection{Do Calendar Spreads Mean-Revert?}
+
+A calendar spread is a portfolio that consists of a long position in one futures
+contract, and a short position in another futures contract with the same underlying but a diff erent expiration month. Calendar spreads might seem to be great candidates for mean reversion: Aren't both legs tracking the exact same underlying asset? But here again, roll returns derail our intuition. A calendar spread only depends on the roll return and not the spot return.
+
+<<c5v3>>=
+pathname             <- file.path(".", "/data/inputDataDaily_CL_20120502.mat")
+data                 <- readMat(pathname)
+tday                 <- data$tday
+tday                 <- as.Date(as.character(tday),format ="%Y%m%d")
+cl                   <- xts(data$cl[,],tday)
+n                    <- dim(cl)[1]
+contracts            <- unlist(data$contracts)
+i                    <- 1
+gamma                <- rep(NA,n)
+
+for(i in seq_len(n)){
+  idx                <- which( !is.na(cl[i,] ) )
+  if(length(idx)>=5){
+      idx.next       <- (idx+1)[1:4]
+      idx.diff       <- all(!is.na(cl[i,idx.next] ))
+      if(idx.diff){
+        temp         <- cbind(t(coredata(cl[i,idx[1:5]])),1:5)
+        gamma[i]     <- -coef(lm(log(temp[,1]) ~ temp[,2] ))[2]*12
+      }
+  }
+}
+gamma.xts            <- xts(gamma,tday)
+(roll.returns        <- mean(gamma.xts,na.rm=T))
+gamma.xts            <- gamma.xts[!is.na(gamma.xts[,1])]
+@
+
+Dickey fuller test shows that the $\gamma$ is mean reverting.
+<<c5v4>>=
+test <- ur.df(coredata(gamma.xts),type="drift")
+summary(test)
+test <- ur.df(coredata(gamma.xts),type="none")
+summary(test)
+@
+
+The half life of $\gamma$ can be computed as 
+<<c5v5>>=
+half.life <- -log(2)/coef(lm( gamma.xts - lag(gamma.xts,1) ~ lag(gamma.xts,1)))[2]
+cat("half life", round(half.life),"days \n")
+@
+
+I have not replicated the above strategy results via R.Seems pretty tedious given the format of the data available on the author's website. 
+
+\vskip .1in
+
+The author tests out various Futures intermarket spreads and shows that none of the spreads form a stationary series. The chapter has a section where VIX futures and E-mini S\&P 500 futures contracts are used to create a cointegrating pair. Atleast on paper, the strategy looks promising.
+
+\newpage
+
+
+

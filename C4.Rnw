@@ -1,0 +1,298 @@
+<<parent4, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+\section{Mean Reversion of Stocks and ETFs}
+
+The chapter starts off with the author discussing about the difficulties with pursuing mean reverting strategies that involve stocks. Some of them are
+\vskip .1in
+\begin{compactitem}
+\item Stocks are seldom cointegrating out of sample !
+\item Short-sale constraints
+\item Need to trade pairs intra-day as the profit margins have been short-squeezed in the recent years
+\end{compactitem}
+\vskip .1in
+
+Subsequently, mean reverting strategies for ETFs are explored. One of the first strategy that is
+explored in the book is \textit{ Buy-on-Gap} strategy. The author says he had used this strategy for his fund as well as his personal account and it made money till 2009.The rules of the strategy are
+\vskip .1in
+\begin{compactenum}
+\item Select all stocks near the market open whose returns from their previous days lows to todays opens are lower than one standard deviation. The standard deviation is computed using the daily closeto-close returns of the last 90 days. These are the stocks that gapped
+down.
+\item  Narrow down this list of stocks by requiring their open prices to be higher than the 20-day moving average of the closing prices.
+\item  Buy the 10 stocks within this list that have the lowest returns from their previous day’s lows. If the list has fewer than 10 stocks, then buy the entire list.
+\item  Liquidate all positions at the market close.
+\end{compactenum}
+
+Here is the R code to verify the APR numbers mentioned in the book
+
+<<c4v1>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_stocks_20120424.mat")
+data            <- readMat(pathname)
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+cl              <- xts(data$cl[,],tday)
+returns         <- Return.calculate(cl)
+returns.sd      <- as.xts(rollapplyr(returns,width=90, sd,by.column=TRUE))
+cl.ma           <- as.xts(rollapplyr(cl,width=20, mean,by.column=TRUE))
+op              <- xts(data$op[,],tday)
+lo              <- xts(data$lo[,],tday)
+ret.op.lo       <- (op - lag(lo,1))/lag(lo,1)
+status.ret      <- ret.op.lo < -lag(returns.sd,1)
+cond            <- is.na(status.ret)
+status.ret[cond]<- FALSE
+status.ma       <- op > lag(cl.ma,1)
+cond            <- is.na(status.ma)
+status.ma[cond] <- FALSE
+status          <- status.ret & status.ma
+cond            <- is.na(status)
+status[cond]    <- FALSE
+filter          <- ret.op.lo*status
+status.temp     <- status*0
+
+for(i in 1:1500){
+      stocks    <- sum(status[i,])    
+      if(stocks <= 10 ) {
+         status.temp[i,which(status[i,]==TRUE )] <- 1
+       }
+      if(stocks > 10 ){ 
+        status.temp[i,order(filter[i,])[1:10] ] <- 1
+       }
+ }
+daily.ret       <- (cl-op)/op
+daily.ret       <- status.temp*daily.ret
+cond            <- is.na(daily.ret)
+daily.ret[cond] <- 0
+daily.ret       <- apply(daily.ret,1,sum)/10
+(APR            <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe         <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+
+<<c4f1,fig.cap="Cumulative Returns of Buy-on-Gap Model", opts.label="fig.large">>=
+chart.TimeSeries((cumprod(1+daily.ret)-1) ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+
+
+
+One can also follow a reverse strategy where you short the stocks that have gapped up
+Here are the  numbers for such a strategy
+<<c4v2>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_stocks_20120424.mat")
+data            <- readMat(pathname)
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+cl              <- xts(data$cl[,],tday)
+returns         <- Return.calculate(cl)
+returns.sd      <- as.xts(rollapplyr(returns,width=90, sd,by.column=TRUE))
+cl.ma           <- as.xts(rollapplyr(cl,width=20, mean,by.column=TRUE))
+op              <- xts(data$op[,],tday)
+lo              <- xts(data$lo[,],tday)
+ret.op.lo       <- (op - lag(lo,1))/lag(lo,1)
+status.ret      <- ret.op.lo > lag(returns.sd,1)
+cond            <- is.na(status.ret)
+status.ret[cond]<- FALSE
+status.ma       <- op < lag(cl.ma,1)
+cond            <- is.na(status.ma)
+status.ma[cond] <- FALSE
+status          <- status.ret & status.ma
+status[is.na(status)] <- FALSE
+filter          <- ret.op.lo*status
+status.temp     <- status*0
+
+for(i in 1:1500){
+      stocks    <- sum(status[i,])    
+      if(stocks <= 10 ) {
+         status.temp[i,which(status[i,]==TRUE )] <- 1
+       }
+      if(stocks > 10 ){ 
+        status.temp[i,order(filter[i,],decreasing=T)[1:10] ] <- 1
+       }
+ }
+daily.ret       <- -(cl-op)/op
+daily.ret       <- status.temp*daily.ret
+cond            <- is.na(daily.ret)
+daily.ret[cond] <- 0
+daily.ret       <- apply(daily.ret,1,sum)/10
+(APR            <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe         <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+
+<<c4f2,fig.cap="Cumulative Returns of Short-on-Gap Model", opts.label="fig.large">>=
+chart.TimeSeries((cumprod(1+daily.ret)-1) ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+Although the shorting on gapup might look profitable, one must check off the list of pitfalls of backtesting before committing to such a strategy.
+
+\subsection{Arbitrage between an ETF and Its Component Stocks}
+Typically HFT traders indulge in this kind of high speed arb. The idea is to trade the ETF
+and a set of stocks from the group of stocks that represent the ETF. The author uses SPY and its constituent stocks. Amongst all the stocks he finds that 98 cointegrate as per Johansen procedure. Subsequently he forms a portfolio of SPY and equal weighted 98 stocks and runs a cointegration analysis. Well, as you can see, this brings up a few questions ? Why equal weighted ? Well, the example is more for an illustrative purpose and hence you can overlay whatever logic and trade. May be the capital allocation can be based on market values of the stocks etc. The other questions is, Why not run Johansen procedure with SPY and all of its stocks together in one go ? Ideally if there were a critical value table for the trace and eigen values in the Johansen 
+procedure, you can very well put everything and find THE cointegrating relation that is strongest. However MATLAB has a limitation of 12 stocks in Johansen procedure. The R package that I am aware of has a limitation of 10 stocks. So, unless some kind soul does some research and tabulates the critical values , the current infrastructure limits you to the number of stocks that you can consider for cointegration. Another subtle issue that might come up when you run a cointegration of SPY with stocks is that there could be some stocks for whom buy/sell signal is same as buy/sell signal for SPY.This means you will be double long/ double short on some stocks. You might say who cares, as long as the relationship reverts ? I don't know. Unless one actually puts in a position and sees how it pans out, one really can't argue too much about it.
+\vskip .1in
+
+Here is the R code for this strategy. Because of a difference in implementation details, the code does not exactly match the list of stocks selected for cointegration and the strategy results. 
+
+<<c4v3>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_stocks_20120424.mat")
+data            <- readMat(pathname)
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+stks.cl         <- data$cl
+sym             <- unlist(data$stocks)
+pathname        <- file.path(".", "/data/inputData_ETF.mat")
+data            <- readMat(pathname)
+idx             <- which(unlist(data$syms)=="SPY")
+etf.cl          <- data$cl[,idx]
+etfx            <- xts(etf.cl,tday)
+stksx           <- xts(stks.cl,tday)
+
+
+etfx.model      <- etfx["20070101/20071231"]
+etfx.test       <- etfx["20080101/20120409"]
+stksx.model     <- stksx["20070101/20071231"]
+stksx.test      <- stksx["20080101/20120409"]
+coint.status    <- rep(FALSE, dim(stksx)[2])
+for(i in seq_along(coint.status)){
+  if(all(!is.na(stksx.model[,i]))){
+     jtrace     <- ca.jo(cbind(etfx.model,stksx.model[,i]) , type="trace")
+     coint.status[i] <- summary(jtrace)@teststat[2] >  summary(jtrace)@cval[2,1]
+  }
+}
+sum(coint.status)
+@
+There are about 102 stocks that are cointegrated with SPY. Forming an equal weighted portfolio
+<<c4v4>>=
+coint.stks      <- stksx.model[,c(coint.status)]
+coint.val       <- xts(apply(log(coint.stks),1,sum),index(stksx.model))
+etf.val         <- log(etfx.model)
+jtrace          <- ca.jo(cbind(stks=coint.val,etf=etf.val) , type="trace")
+cbind(Trace=summary(jtrace)@teststat, summary(jtrace)@cval)
+@
+
+<<c4v5>>=
+jeigen          <- ca.jo(cbind(stks=coint.val,etf=etf.val) ,  type="eigen", K=2)
+cbind(Trace=summary(jeigen)@teststat, summary(jeigen)@cval)
+@
+Trace and eigen stats show that there is a cointegrating relationship. The capital allocation is 
+the first eigen vector.
+<<c4v6>>=
+as.matrix(jtrace@V)
+@
+Applying Linear Mean reversion strategy
+
+<<c4v7>>=
+test.idx        <- index(etfx.test)
+coint.stks.test <- stksx.test[,c(coint.status)]
+idx             <- dim(coint.stks.test)
+wts.stks        <- repmat(jtrace@V[1,1],idx[1],idx[2])
+
+idx             <- dim(etfx.test)
+wts.etf         <- repmat(jtrace@V[2,1],idx[1],idx[2])
+wts             <- cbind(wts.stks,wts.etf)
+
+port.val        <- log(cbind(coint.stks.test,etfx.test))*wts
+port.val        <- apply(port.val,1,sum)  
+
+port.val        <- xts(port.val,test.idx)
+roll.mu         <- as.xts(rollapplyr(port.val,width =5, mean))
+roll.sd         <- as.xts(rollapplyr(port.val,width =5, sd))
+data            <- merge(port.val, roll.mu, roll.sd)
+colnames(data)  <- c("spread","mu","sd")
+data$dev        <- - with(data, (spread-mu)/sd)
+
+positions       <- repmat(data$dev,n=1,m=dim(wts)[2]) *wts
+positions       <- xts(positions,test.idx)
+yplus           <- log(cbind(coint.stks.test,etfx.test))
+pnl             <- positions*(lag(yplus,-1) - yplus)
+pnl             <- xts(apply(pnl,1,sum),test.idx)
+
+exposure        <- positions
+exposure        <- xts( apply(abs(exposure), 1,sum),test.idx )
+daily.ret       <- pnl/exposure
+daily.ret[is.na(daily.ret)] <- 0
+(APR            <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe         <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+For some reason, I obtain different from the ones given in the book.May be there is a bug in my code.
+
+<<c4f3,fig.cap="Cumulative Returns of Arbitrage between SPY and Its Component Stocks", opts.label="fig.large">>=
+chart.TimeSeries((cumprod(1+daily.ret)-1) ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+
+
+\subsection{Cross Sectional Mean Reversion}
+The next strategy introduced in the chapter is one where stocks are longed or shorted based on the relative movement with respect to sector index or a market index.
+<<c4v8>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_stocks_20120424.mat")
+data          <- readMat(pathname)
+tday          <- data$tday
+tday          <- as.Date(as.character(tday),format ="%Y%m%d")
+
+cl            <- xts(data$cl,tday)
+cl            <- cl["20070101/20111231"]
+
+op            <- xts(data$op[,],tday)
+op            <- op["20070101/20111231"]
+
+lo            <- xts(data$lo[,],tday)
+lo            <- lo["20070101/20111231"]
+
+ret           <- (cl - lag(cl,1))/lag(cl,1)
+market.mean   <- as.xts(apply(ret,1, mean, na.rm=T))
+weights       <- -(ret - repmat(market.mean,n=1,m=dim(ret)[2]))
+abs.mean      <- as.xts(apply(abs(weights),1, sum, na.rm=T))
+weights       <- weights/ repmat(abs.mean,n=1,m=dim(weights)[2])
+daily.ret     <- lag(weights, 1)*ret
+
+daily.ret[is.na(daily.ret)] <- 0
+daily.ret     <- apply(daily.ret,1,sum)
+daily.ret[is.na(daily.ret)] <- 0
+(APR          <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe       <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+<<c4f4,fig.cap="Cumulative Returns of Linear Long-Short Model", opts.label="fig.large">>=
+chart.TimeSeries((cumprod(1+daily.ret)-1) ,xlab = "", main="",colorset = c(4),
+                 ylab="Cumulative Returns")
+@
+
+
+The above can be made in to a intra-trade strategy by using day's open 
+and previous close to compute the signal.
+
+<<c4v9>>=
+pathname        <- file.path(".", "/data/inputDataOHLCDaily_stocks_20120424.mat")
+data          <- readMat(pathname)
+tday          <- data$tday
+tday          <- as.Date(as.character(tday),format ="%Y%m%d")
+
+cl            <- xts(data$cl,tday)
+cl            <- cl["20070101/20111231"]
+
+op            <- xts(data$op[,],tday)
+op            <- op["20070101/20111231"]
+
+lo            <- xts(data$lo[,],tday)
+lo            <- lo["20070101/20111231"]
+
+ret           <- (op - lag(cl,1))/lag(cl,1)
+market.mean   <- as.xts(apply(ret,1, mean, na.rm=T))
+weights       <- -(ret - repmat(market.mean,n=1,m=dim(ret)[2]))
+abs.mean      <- as.xts(apply(abs(weights),1, sum, na.rm=T))
+weights       <- weights/ repmat(abs.mean,n=1,m=dim(weights)[2])
+daily.ret     <- weights*(cl-op)/op
+
+daily.ret[is.na(daily.ret)] <- 0
+daily.ret     <- apply(daily.ret,1,sum)
+daily.ret[is.na(daily.ret)] <- 0
+(APR          <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe       <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+Despite such a stellar performance, the open-to-close version suffers from a few drawbacks that the close-toclose version does not have. First, the transaction costs will be doubled, because we are trading twice a day instead of just once a day. Second, since this strategy also has to use open prices to determine the trading signals for entry at the open, it is subject to the same trading signal noise that was mentioned in the Buy-on-Gap Model.
+
+\newpage

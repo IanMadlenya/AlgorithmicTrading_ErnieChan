@@ -1,0 +1,33 @@
+<<parent7, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+\section{Intraday Momentum Strategies}
+The short term intra day momentum strategies have two advantages
+\vskip .1in
+\begin{compactitem}
+\item Since there are many trades, it results in a higher sharpe ratio
+\item Backtesting strategy has more statistical significance than inter day strategies
+\end{compactitem}
+
+\vskip .1in
+There are four types of strategies mentioned in this chapter
+First is the \textit{Opening Gap Strategy}
+This strategy involves buying when the instrument gaps up, and shorting when it gaps down.
+What's special about the overnight or weekend gap that sometimes triggers
+momentum? The extended period without any trading means that the
+opening price is often quite diff erent from the closing price. Hence, stop
+orders set at diff erent prices may get triggered all at once at the open. The
+execution of these stop orders often leads to momentum because a cascading
+eff ect may trigger stop orders placed further away from the open price
+as well.I have tried replicating the numbers by importing the dataset in to R or Python. I couldn't as both R and Python threw exceptions.
+\vskip .1in
+The other three strategies mentioned are  \textit{News-Driven Momentum Strategy}
+\textit{Leveraged ETF Strategy} and \textit{High-Frequency Strategies}.
+The author provides a flavor of momentum strategies that can be used in HFT, i.e. ratio trade, quote matching, flipping, stop hunting. All these  high-frequency momentum strategies involve extracting information from the order book, and the basic idea is simple: If the bid size is much bigger than the ask size, expect the price to tick up and vice versa. 
+
+\newpage
+
+
+

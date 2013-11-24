@@ -1,0 +1,89 @@
+\documentclass{article}
+
+  
+\input{preamble}
+\fancyhead[CO,CE]{Algorithmic Trading - Winning Strategies and their Rationale}
+  
+\title{Algorithmic Trading - Winning Strategies and their Rationale \\ Summary}
+\author{RK}
+\date{\today}
+\usepackage[font=small,skip=0pt]{caption}
+\usepackage{verbatim}
+\usepackage{chngcntr}
+\usepackage{float}
+\counterwithin{figure}{section}
+  
+\parindent=0pt 
+\DefineVerbatimEnvironment{Sinput}{Verbatim} {xleftmargin=2em}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{xleftmargin=2em}
+\DefineVerbatimEnvironment{Scode}{Verbatim}{xleftmargin=2em}
+\fvset{listparameters={\setlength{\topsep}{0pt}}}
+\renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The purpose of this document is to summarize the book ``Algorithmic Trading - Winning Strategies and their Rationale'' 
+and provide some supporting R code to work with the book.
+\\
+\begin{center}
+\includegraphics[width=0.3\textwidth]{figures/bookcover}
+\end{center}
+
+\end{abstract}
+\pagebreak
+\tableofcontents
+\newpage
+
+<<setup, include=FALSE, cache=FALSE>>=
+opts_chunk$set(fig.align="center", cache.path="cache/graphics-", fig.width=4, fig.height=4, fig.show="hold", cache=TRUE, par=TRUE,tidy=FALSE,out.width = ".9\\linewidth",fig.pos="ht")
+library(astsa)
+library(dlm)
+library(urca)
+library(xts)
+library(PerformanceAnalytics)
+library(R.matlab)
+library(pracma)
+library(vrtest)
+library(xtable)
+opts_template$set (
+fig.large = list(fig.width = 7, fig.height = 4),
+fig.small = list(fig.width = 3.5, fig.height = 3)
+)
+@
+
+
+\section*{Summary}
+
+<<C0, child="C0.Rnw">>=
+@
+
+<<C1, child="C1.Rnw">>=
+@
+
+<<C2, child="C2.Rnw">>=
+@
+
+<<C3, child="C3.Rnw">>=
+@
+
+<<C4, child="C4.Rnw">>=
+@
+
+<<C5, child="C5.Rnw">>=
+@
+
+<<C6, child="C6.Rnw">>=
+@
+
+<<C7, child="C7.Rnw">>=
+@
+
+\section{Risk Management}
+
+
+
+
+\end{document}

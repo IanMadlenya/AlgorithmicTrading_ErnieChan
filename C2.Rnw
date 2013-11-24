@@ -1,0 +1,241 @@
+<<parent2, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+
+\section{The Basics of Mean Reversion}
+Mean reversion is everywhere and it is no wonder that financial prices also exhibit it. However finding the stock or combination of stocks that mean revert and profiting from it can be challenging. It was definitely not the case when such strategies were successfully used in MorganStanley and similar places 20 years ago. But now with HFT algos in the market, such opportunities have come down. In any case, the author gives a thorough explanation of the mechanics behind a mean reverting strategy. For a single stock, the first thing one needs to check is the stationarity of the series. The chapter mentions a few tests.
+
+\vskip .1in
+\begin{compactitem}
+
+\item Dickey-Fuller tests : Well, there are many unit root tests and all of them follow the same framework - They start a model with a null that says the series is a particular form of  random walk. They estimate the coefficient that is crucial to call the process a random walk or not. Based on the distribution of the coefficient, one can reject null or fail to reject null. The chapter does not mention it, but I think it is better to also test that states null as stationary and alternate as random walk.
+
+\item Using Hurst exponent.
+
+\item Variance ratio test - The source of this test is the paper by Lo and MacKinlay where the authors test the random walk hypothesis on weekly returns. Instead of relying on returns, they perform a test based on ratio of variance of lagged weekly returns and variance of weekly returns. The paper goes on to show that several finanacial time series show positive serial correlation. Infact the authors have written a detailed book (``A Non Random Walk down the Wall Street'') with their findings.
+
+\item Half life for Mean reversion : The above tests are very harsh and probably there are situations where setups can be put in place based on how quickly the price reverts. This is typically done by fitting an AR(1) process and then estimating the half-life of the series.
+\end{compactitem}
+
+\vskip .1in
+
+Well, one can say, what's the point in all these tests such as unit tests, variance ratio tests etc. Why not just backtest and decide whether to go ahead with the strategy or not. One point to consider is that these tests are far more statistically significant that what your strategy results show. The strategy by its very nature will have limited data points whereas the above tests use almost all the data points. Besides that if a series shows stationarity or a set of series show stationarity, then one can atleast put an effort in coming up with a strategy. What's the point in testing strategy after strategy when the series itself is close to random ?. The chapter goes on to use a few time series and performs all the above tests on them. I have replicated the code in R. Since the dataset is not provided at the author's site, I have downloaded data from \href{http://www.quandl.com/OANDA-OANDA-Corporation/USDCAD-Currency-Exchange-Rate-USD-vs-CAD}{OANDA}.
+
+\subsection{Dickey-Fuller test}
+
+<<c2df1>>=
+pathname      <- file.path(".", "/data/USDCAD.csv")
+data          <- read.csv(pathname,stringsAsFactors=F)
+tday          <- as.Date(data[,1],format = "%m/%d/%Y")
+usacad        <- xts(data[,2],tday)
+usacad        <- usacad["20070722/20120328",]
+usacad[,1]    <- coredata(usacad)/coredata(usacad)[1,1]
+@
+
+<<c2f1,fig.cap="USD.CAD price series", opts.label="fig.large">>=
+chart.TimeSeries(usacad,,xlab = "", colorset = c(4),ylab="USD.CAD")
+@
+
+
+<<c2df2>>=
+test <- ur.df(usacad[,1],type="drift")
+summary(test)
+@
+
+Based on the critical values, the joint hypothesis based on $\phi_1$ says that the coefficients on both the drift component and the random walk coefficients are 0.Hence one needs to reestimate with out the drift component.
+<<c2df3>>=
+test <- ur.df(usacad[,1],type="none")
+summary(test)
+@
+Clearly the series is a random walk.
+
+\subsection{Variance ratio test}
+<<c2vt1>>=
+y    <-coredata(usacad)
+n    <- length(y)
+z    <- log(y[2:n]) - log(y[1:(n-1)])
+Lo.Mac(z,kvec=c(2,5,10,25,100))$Stats
+Boot.test(z,nboot = 500, kvec=c(2,5,10,25,100),wild="Normal")$CI
+@
+The test throws out statistics based on the holding period. Let's say the holding period is 100, one clearly see that that one cannot reject random walk But for smaller holding periods, there is a case for rejecting random walk.
+
+
+\subsection{Half life}
+<<c2vt2>>=
+y          <- coredata(usacad)
+n          <- length(y)
+deltay     <- y[2:n]-y[1:(n-1)]
+half.life  <- -log(2) / coef(lm(deltay ~ y[1:(n-1)]))[2]
+cat("halflife",round(half.life),"\n")
+@
+Clearly this shows that it takes more than a year to hit mean. No sane person would trade this instrument anticipating mean reversion.
+
+\vskip .1in
+The author goes on to create a simple linear mean reverting trading strategy. I will use the above half-life of 250 days. 
+<<c2vt3>>=
+roll.mu        <- rollapplyr(usacad , width = 250, mean )
+roll.sd        <- rollapplyr(usacad , width = 250, sd )
+data           <- merge(usacad, roll.mu, roll.sd)
+colnames(data) <- c("usacad","mu","sd")
+data$dev       <- with(data, (usacad-mu)/sd)
+asset          <- data$usacad
+returns        <- diff(asset)/asset
+data           <- merge(data, returns)
+data           <- data[apply(!is.na(data),1,all),]
+colnames(data) <- c("usacad","mu","sd","dev","ret")
+data$lret      <- lag(data$ret,-1)
+daily.ret      <- data$dev*data$lret
+@
+
+<<c2f,fig.cap="Equity Curve of Linear Trading Strategy", opts.label="fig.large">>=
+chart.TimeSeries(cumsum(daily.ret),xlab = "", colorset = c(4),ylab="Cumulative P&L",main="")
+@
+
+\subsection{Cointegration}
+
+The author uses Engle Granger two step methodology to analyze the cointegrating behavior between 2 ETFs. Here is the R code for it.
+<<c2vt4>>=
+pathname        <- file.path(".", "/data/inputData_ETF.mat")
+data            <- readMat(pathname)
+idxa            <- which(unlist(data$syms)=="EWA")
+idxb            <- which(unlist(data$syms)=="EWC")
+idxc            <- which(unlist(data$syms)=="IGE")
+tday            <- data$tday
+tday            <- as.Date(as.character(tday),format ="%Y%m%d")
+x               <- data$cl[,idxa]
+y               <- data$cl[,idxb]
+z               <- data$cl[,idxc]
+pairs           <- xts(cbind(x,y),tday)
+colnames(pairs) <- c("EWA","EWC")
+triad           <- cbind(pairs,z)
+colnames(triad) <- c("EWA","EWC","IGE")
+residuals       <- xts(c(resid(lm(y~x)) ) , tday)
+@
+
+
+<<c2f3,fig.cap="Share Prices of EWA versus EWC", opts.label="fig.large">>=
+chart.TimeSeries(pairs,ylim=c(0,40), xlab = "", colorset = rich6equal,ylab="Share price in $",main = "",legend.loc="topleft")
+@
+
+
+<<c2f4,fig.cap="Scatter plot of EWA vs EWC", opts.label="fig.large">>=
+plot(as.matrix(pairs),pch=19, cex=0.4,col="blue")
+@
+
+<<c2f5,fig.cap="Stationarity of Residuals of Linear Regression between EWA versus EWC", opts.label="fig.large">>=
+chart.TimeSeries(residuals,ylim=c(-6,6), 
+                 xlab = "", colorset = rich6equal,ylab="EWC-hedgeratio*EWA",
+                 main = "")
+@
+
+<<c2vt5>>=
+summary(ur.df(residuals,type="none"))@teststat
+@
+The critical value using Mckinnon surface response regression
+<<c2vt6>>=
+T <- 1500
+(critical.val <- -3.3377 - 5.967/T - 8.98/T^2)
+@
+
+Hence one can reject the null of unit root and state that the residuals are stationary.
+One can always do additional tests like Phillips-Ouliaris test that are not mentioned in the chapter
+<<c2vt7>>=
+summary(ca.po(cbind(y,x),demean="const",type="Pu") )
+@
+Verdict - Reject Spurious correlation
+
+
+\subsection{Johansen Test}
+The biggest problem with Engle Granger methodology is the arbitrariness of choosing regressand while computing the hedge ratio. Depending on what variable is chosen as regressand, the system might or might not exhibit mean reversion. This problem is overcome in Johansen test where the test gives out all the cointegrating relations in a system
+
+<<c2tr1>>=
+jtrace <- ca.jo(cbind(y,x), type="trace", K=2)
+cbind(Trace=summary(jtrace)@teststat, summary(jtrace)@cval)
+@
+<<c2tr2>>=
+jeigen <- ca.jo(cbind(y,x), type="eigen", K=2)
+cbind(Trace=summary(jeigen)@teststat, summary(jeigen)@cval)
+@
+
+As one can see based on the trace and eigen results, you can reject the null that the cointegrating rank of the coefficient matrix is 0. You can also reject the null that the cointegrating rank is 1.The author does not use lags for the Johansen test and gets a statistically significant result for rank as 2. This means that the cointegrating rank for a 2 variable system is actually 2,meaning that there are two independent cointegrating relations that exist.The bonus with Johansen method is that the eigen vector matrix gives the hedge ratio for the two cointegrating relations
+<<c2tr3>>=
+jtrace@Vorg
+jtrace@lambda[1]/jtrace@lambda[2]
+@
+As one can see the strength of the first eigen value is 4 times that of second one. So, one can say that the first cointegrating vector is 4 times stronger than the second one. This is the beauty of Johansen method where you don't have to worry about which variable that you take in regressand, you don't have to run two regressions and manually check which of the relation is stronger etc. The real strength of Johansen is that you can find set of stocks that mean revert. The author carries out an analysis using three ETFs.
+
+<<c2tr4>>=
+jtrace <- ca.jo(cbind(y,x,z), type="trace",K=2)
+cbind(Trace=summary(jtrace)@teststat, summary(jtrace)@cval)
+@
+As per the above results, there is one cointegrating relation at 
+<<c2tr5>>=
+jeigen <- ca.jo(cbind(y,x,z), type="eigen",K=2)
+cbind(Trace=summary(jeigen)@teststat, summary(jeigen)@cval)
+@
+As per the above results, there is no cointegrating relation. However if you use the critical values as mentioned in the book, one can see that there are atleast three cointegrating relationships in the system. Here are the eigen values and eigen vector and they match 
+with the values generated from MATLAB.
+<<c2tr6>>=
+round(jtrace@lambda,4)
+round(-jtrace@Vorg,4)
+@
+The first eigen vector is the strongest and one can choose the first eigen vector to form 
+a stationary cointegrating portfolio.
+
+<<c2tr7>>=
+portfolio     <- cbind(y,x,z)%*%(-jtrace@Vorg[,1])
+portfolio.xts <- xts(portfolio,tday)
+fit           <- lm(diff(portfolio.xts) ~lag(portfolio.xts,1))
+half.life     <- -log(2)/coef(fit)[2]
+cat("half.life", round(half.life),"\n")
+@
+The half-life of this portfolio is about 23 days.
+
+\subsection{Linear Mean-Reverting Trading on a Portfolio}
+<<c2tr8>>=
+lkback           <- 23
+roll.mu          <- as.xts(rollapplyr(portfolio.xts , width= 23, mean ))
+roll.sd          <- as.xts(rollapplyr(portfolio.xts , width= 23, sd ))
+data             <- merge(portfolio.xts, roll.mu, roll.sd, triad)
+colnames(data)   <- c("port","mu","sd","EWA","EWC","IGE")
+data$dev         <- -with(data, (port - mu)/sd)
+stock.alloc      <- -jtrace@Vorg[,1]
+positions        <- cbind(data$dev*stock.alloc[1]*data$EWC,
+                       data$dev*stock.alloc[2]*data$EWA,
+                       data$dev*stock.alloc[3]*data$IGE)
+colnames(positions) <- c("pos.y","pos.x","pos.z")
+
+returns          <- Return.calculate(data[,c("EWA","EWC","IGE")])
+
+colnames(returns) <- c("EWA.ret","EWC.ret","IGE.ret")
+data             <- merge(data, positions)
+data             <- merge(data, returns)
+data$lEWA        <- lag(data$EWA.ret,-1)
+data$lEWC        <- lag(data$EWC.ret,-1)
+data$lIGE        <- lag(data$IGE.ret,-1)
+daily.ret       <- with( data, (pos.y*lEWC+pos.x*lEWA+pos.z*lIGE)/
+                         ( abs(pos.x)+abs(pos.y)+abs(pos.z)))
+
+daily.ret[is.na(daily.ret)] <- 0
+
+cum.ret        <- xts((cumprod(1+daily.ret)-1),tday)
+(APR           <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe        <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+These APR and Sharpe numbers match with that given in the book. However there
+is a problem with the output given in the book, i.e. the first 23 days of the strategy get consumed in calculating the rolling beta and rolling spread mean and sd of the strategy. Also the last day of the dataset should be removed because of look-ahead bias.Hence the correct numbers should be 
+
+<<c2tr9>>=
+daily.ret      <- daily.ret[23:(length(daily.ret)-1)]
+(APR           <- prod(1+daily.ret)^(252/length(daily.ret))-1)
+(Sharpe        <- sqrt(252)*mean(daily.ret)/std(daily.ret))
+@
+
+<<c2f6,fig.cap="Cumulative Returns of a Linear Trading Strategy on EWA-EWC-IGE Stationary Portfolio", opts.label="fig.large">>=
+chart.TimeSeries(cum.ret, xlab = "", colorset = rich6equal,
+                 ylab="Cumulative returns", main = "")
+@
+
+The chapter ends with discussing the Pros and Cons of Mean-Reverting Strategies. The advantage using mean-reverting strategies is that one can make up a story to support your intuition behind the trade. Also the strategies span a variety of time scales. The flip side of following a mean reverting strategy is that there could be a fundamental reason when the strategy breaks down and only in hindsight can one realize it.

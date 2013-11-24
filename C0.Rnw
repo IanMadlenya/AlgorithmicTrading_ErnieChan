@@ -1,0 +1,8 @@
+<<parent0, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+
+\section*{Preface}
+The author lays out the broad framework of the book saying that he would be dealing with two broad categories
+of strategies, ``mean reverting strategies'' and ``momentum strategies''. The author makes it clear that in noway is he disclosing the secret strategies that make him tick. He says the book talks about strategies that are well known to many traders. Most of the strategies that are mentioned in the book are with out considering transaction costs and may contain some major pitfalls that a reader needs to take care of, before he/she can use it in a live market. Basically all the strategies suggested are ``prototype strategies'' and the reader is expected to sweat it out before making any of the strategies useful. 

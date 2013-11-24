@@ -1,0 +1,180 @@
+
+<<parent1, include=FALSE>>=
+set_parent ( "AlgorithmicTrading.Rnw" )
+@
+
+\section{Backtesting and Automated Execution}
+This chapter focuses exclusively on backtesting and more specifically, the pitfalls of backtesting. 
+Firstly, why backtest?
+\begin{compactitem}
+\item To make your ideas/strategies viable in the market, they need to perform atleast well on paper, i.e. on historical data. 
+\item Backtesting a published strategy gives the real test as you are likely to use it on a ``out-of-sample'' data to check its viability.
+\item One also realizes as one backtests, the importance of implementation details and thus becomes more aware of the nitty-gritty of the strategy.
+\end{compactitem}
+
+\vskip .1in
+
+Why is it important to consider the pitfalls of a strategy ? In all likelihood, a pitfall tends to inflate the backtest performance of a strategy relative to its actual performance in the past, which is particularly dangerous. The common pitfalls mentioned are : 
+
+\vskip .1in
+
+\begin{compactitem}
+\item \textit{Look-ahead bias} - Using future data. This is usually a programming bug.
+\item \textit{Data-Snooping bias} - Overfit the data so much that it is going to underperform badly in the real world. In this case, the author stresses the importance of a simple linear fit than quadratic or polynomial fitting model. This is nothing new but the author highlights an important point - Simple models but lots of complicated trading rules are just as susceptible to data-snooping. So, the mantra seems to be simple model and simple rules 
+
+\item \textit{Cross validation} can be used when the sample size is small or when you cannot afford to keep aside separate test data
+
+\item \textit{Make Friends with Gauss} - I think this is the first time I am coming across a trader who says Guassian is your friend. Generally the literature on financial markets are highly critical about Gaussian. The author has a point though. He hints that if you are trying to fit a a complicated distribution, you are only going to increase the number of parameters and thus end up going against Occam's razor dictum - Unless there are strong theoretical and empirical reasons to support a non-gaussian distribution, a gaussian form should be assumed.
+
+\item \textit{Linear trading models} are emphasized by author where the various components are model enter in to the model in a linear fashion. An interesting example of a linear trading strategy is mentioned where sign of the correlation of factor , the rank of the stock based on the factor is used for stock selection. In this context, the author cites Daniel Kahneman's book, ``Thinking, Fast and Slow'',  that says \textit{formulas that assign equal weights to all the predictors are often superior, because they are 
+not affected by accidents of sampling}. This book has been lying in my inventory for quite sometime. Somehow, I have to find time to read this book.
+
+\item \textit{Stock Splits and Dividends } - Not all time series come with split adjusted and dividend adjustments. One needs to either manually construct such a series or try to find data vendors who can automatically provide such a series.
+
+\item \textit{Survivorshop Bias} - The problem with testing a strategy for a long historical period is that all the bad points are automatically removed and hence the backtesting results in overestimated profits for the strategy. Survivorshop bias is more dangerious to mean-reverting long-only stock strategies, than to mean-reverting long-short or short-only strategies. This bias tends to inflate the backtest performance of a long-only strategy and deflates the performance of a short-only stategy. Survivorship is less dangerous to momentum models. Hence depending on the type of strategy that is being tested, one needs to keep an eye on whether look-ahead bias overestimates or underestimates the strategy.
+
+\item \textit{Primary versus Consolidated stock prices.}
+\item \textit{Short-sale constraints.}
+\item \textit{Futures Continuous contracts} - If your strategy involves futures, it is important to get a consistent data series for the front month or mid month contract going backward. Some of the vendors do provide this continous history. However one needs to be careful and look in to what one is getting. It is possible that the vendor does a price adjustment and you want a P\&L adjusted series or you want price adjusted but the vendor provides P\&L adjusted series.
+
+\item \textit{Futures Close versus Settlement Prices} - It is better to use settlement prices as you are atleast assured of contemporaneous prices
+\end{compactitem}
+
+\vskip .1in
+
+In any backtesting exercise, you are going to compute metrics such as realized return, volatility, sharpe, drawdown etc. These are merely some numbers and you can obviously do a relative comparison with the other strategies. But before you do that, it is important to be sure that you build some confidence interval around the estimates. The author suggests three ways to do a hypothesis testing. There are many ways but these three are bare-minimum I guess. I think one can also add a fourth way to backtest, i.e. via resampling. 
+
+\vskip .1in
+
+\textsc{Method - 1} : Null hypothesis that the trading strategy has zilch returns. In this method all one does is calculate the test statistic and compare it with a $t$ distribution and check whether the null can be rejected. This is the classic frequentist way of doing things. Well there are a ton of assumptions but ingoring all of them, this is a basic test one can perform. If the strategy fails to reject null, then one can stop the backtesting and throw away the strategy. 
+This is illustrated using a simple momentum strategy. MATLAB code is provided by the author and here I have replicated his code in R. I have used \textbf{R.matlab}
+package to convert the \verb#.mat# that are provided with the book.
+
+<<c1method1>>=
+pathname      <- file.path(".", "/data/inputDataOHLCDaily_20120511.mat")
+data          <- readMat(pathname)
+idx           <- which(data$syms=="TU")
+cl            <- data$cl[,idx]
+day           <- as.Date(as.character(data$tday[,idx]), format = "%Y%m%d")
+cl.xts        <- xts(cl,day)
+n             <- dim(cl.xts)[1]
+lbk           <- 250
+hld           <- 25
+res           <- cbind(cl.xts, lag(cl.xts,lbk),lag(cl.xts,-hld))
+res$fut       <- (res[,3] - res[,1])/res[,1]
+res$lbk       <- (res[,1] - res[,2])/res[,2]
+res$pos       <- ifelse(res[,1] - res[,2] >0,1, -1)
+colnames(res) <- c("TU","TU.lag","TU.fut","fut.ret","lag.ret","pos")
+res           <- res[apply(res,1,function(x)all(!is.na(x)) ) ,]
+m             <- dim(res)[1]
+res$status    <- 0
+res[seq(1,m,hld),"status"] <- 1
+returns       <- res$pos*res$status*res$fut.ret
+backtest.ret  <- mean(returns)
+tstat         <- sqrt(length(returns))*mean(returns)/apply(returns,2,sd)
+cat("t stat", as.numeric(tstat),"\n")
+@
+Based on the tstat one can reject the null.
+
+\vskip .1in
+\textsc{Method - 2} : One can simulate returns from the realized returns of the series by matching the first four moments. In the code below I have matched the first two moments and ran about 1000 simulations only. The results seem to match the one given in the book
+
+<<c1method2>>=
+oneday.ret      <- Return.calculate(cl.xts)[-1]
+mu              <- mean(oneday.ret)
+sigma           <- sd(oneday.ret)
+n               <- dim(cl.xts)[1]
+B               <- 1000
+sim.res         <- numeric(B)
+lbk             <- 250
+hld             <- 25
+
+set.seed(12345)
+
+for(k in seq_len(B)) {  
+  ret.sim       <- rnorm(n, mu, sigma)
+  cl.sim        <- coredata(cl.xts)[1]*cumprod(1+ ret.sim)
+  data.xts      <- xts(cl.sim,day)
+  res           <- cbind(data.xts, lag(data.xts,lbk),lag(data.xts,-hld))
+  res$fut       <- (res[,3] - res[,1])/res[,1] 
+  res$lbk       <- (res[,1] - res[,2])/res[,2]
+  res$pos       <- ifelse(res[,1] - res[,2] >0,1, -1)
+  colnames(res) <- c("TU","TU.lag","TU.fut","fut.ret","lag.ret","pos")
+  res           <- res[apply(res,1,function(x)all(!is.na(x)) ) ,]
+  m             <- dim(res)[1]
+  res$status    <- 0
+  res[seq(1,m,hld),"status"] <- 1
+  returns       <- res$pos*res$status*res$fut.ret
+  sim.res[k]    <- mean(returns) > backtest.ret 
+  
+}
+sum(sim.res)
+@
+About 10\% of the simulations have returns greater than the benchmark returns. Based on this result, one can infer the robustness of the strategy to alternate realizations. 
+
+\vskip .1in
+\textsc{Method - 3} : The third method is slightly different where you maintain the same number of longs and shorts as in the original strategy but randomize the dates on which you go long and short. In the code below, this method says that out of 1000 simulations, there was not a single case when the strategy performed better on the simulated data. This says that this kind of testing is probably not relevant to this strategy.
+
+<<c1method3>>=
+res           <- cbind(cl.xts, lag(cl.xts,lbk),lag(cl.xts,-hld))
+res$fut       <- (res[,3] - res[,1])/res[,1]
+res$lbk       <- (res[,1] - res[,2])/res[,2]
+res$pos       <- ifelse(res[,1] - res[,2] >0,1, -1)
+colnames(res) <- c("TU","TU.lag","TU.fut","fut.ret","lag.ret","pos")
+res           <- res[apply(res,1,function(x)all(!is.na(x)) ) ,]
+m             <- dim(res)[1]
+res$status    <- 0
+res[seq(1,m,hld),"status"] <- 1
+B             <- 1000
+sim.res       <- numeric(B)
+
+for(k in seq_len(B)) {  
+  returns     <- sample(res$pos,dim(res)[1]) *res$status* res$fut.ret
+  sim.res[k]  <- mean(returns) > backtest.ret 
+}
+sum(sim.res)
+@
+
+
+
+\vskip .1in
+\textsc{Method - 4} : I am adding a fourth method as this has been always been my favorite. Bootstrap the series from daily returns
+and check whether the strategy works
+
+<<clmethod4>>=
+oneday.ret      <- Return.calculate(cl.xts)[-1]
+n               <- dim(cl.xts)[1]
+B               <- 1000
+sim.res         <- numeric(B)
+lbk             <- 250
+hld             <- 25
+
+set.seed(12345)
+
+for(k in seq_len(B)) {  
+  ret.sim       <- sample(oneday.ret,n, replace = T)
+  cl.sim        <- coredata(cl.xts)[1]*cumprod(1+ ret.sim)
+  data.xts      <- xts(cl.sim,day)
+  res           <- cbind(data.xts, lag(data.xts,lbk),lag(data.xts,-hld))
+  res$fut       <- (res[,3] - res[,1])/res[,1] 
+  res$lbk       <- (res[,1] - res[,2])/res[,2]
+  res$pos       <- ifelse(res[,1] - res[,2] >0,1, -1)
+  colnames(res) <- c("TU","TU.lag","TU.fut","fut.ret","lag.ret","pos")
+  res           <- res[apply(res,1,function(x)all(!is.na(x)) ) ,]
+  m             <- dim(res)[1]
+  res$status    <- 0
+  res[seq(1,m,hld),"status"] <- 1
+  returns       <- res$pos*res$status*res$fut.ret
+  sim.res[k]    <- mean(returns) > backtest.ret 
+  
+}
+sum(sim.res)
+@
+About 4\% of the simulations have returns greater than the benchmark returns.
+
+\vskip .1in
+
+The author also cautions about the relevance of backtesting and says that all regime shifts will make the backtesting irrelevant and the strategy, despite looking good on paper, is going to fall flat. 
+\vskip .1in
+The author ends with a brief account of the various softwares available for a algo trader. Even though there are softwares that are mentioned that could help a non-programming trader, I fail to see what value such softwares can add. The very basic requirement of anybody thinking of algo trading is working knowledge of atleast one or two programming languages.
+\newpage
