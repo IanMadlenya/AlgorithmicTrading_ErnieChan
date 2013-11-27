@@ -1,0 +1,521 @@
+\documentclass{article}
+
+  
+\input{preamble}
+\fancyhead[CO,CE]{Dynamic Documents with R and knitr}
+  
+\title{Dynamic Documents with R and knitr \\ Summary}
+\author{RK}
+\date{\today}
+\usepackage[font=small,skip=0pt]{caption}
+\usepackage{verbatim}
+\usepackage{chngcntr}
+\usepackage{float}
+\counterwithin{figure}{section}
+  
+\parindent=0pt 
+\DefineVerbatimEnvironment{Sinput}{Verbatim} {xleftmargin=2em}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{xleftmargin=2em}
+\DefineVerbatimEnvironment{Scode}{Verbatim}{xleftmargin=2em}
+\fvset{listparameters={\setlength{\topsep}{0pt}}}
+\renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The purpose of this document is to summarize the book ``Dynamic Documents with R and knitr''.
+\\
+\begin{center}
+\includegraphics[width=0.3\textwidth]{figures/bookcover_knitr}
+\end{center}
+
+\end{abstract}
+\pagebreak
+
+\newpage
+
+<<setup, include=FALSE, cache=FALSE>>=
+opts_chunk$set(fig.align="center", cache.path="cache/graphics-", fig.width=4, fig.height=4, fig.show="hold", cache=TRUE, par=TRUE)
+@
+
+
+\section*{Background}
+When you use \textbf{Sweave} for the first time, you really appreciate its utility. It's like you are given the tools to think, code, reflect, tweak the code, write down your observations about the code and output, all in one document. No distractions, No switching softwares. I had thoroughly enjoyed doing literate programming in the last few years. However you reach a point when you think  \textbf{Sweave} package should have had some convenient features. I was always not happy with the code chunk for including graphics. If I use \textbf{ggplot2} package, I had to write \texttt{print} so as to include the figure in the report. However if it was a base graphics, I could just include it with out any such additional statement. Also to have control on the size of figure, I had to fall back on \LaTeX. Shouldn't there be an option in the code chunk that combines these two and make it easier for the user ? That's when I stumbled on to \textbf{knitr} and I have been thrilled with it. In this document, I will try to summarize the main points from the book on knitr, written by the package author, Yihui Xie
+
+
+\section*{Preface}
+
+There are dangers in doing analysis at a separate place and  then tabulating all the results in to a report manually.
+
+\begin{compactitem}
+\item it is error-prone due to too much manual work.
+\item it requires lots of human effort to do tedious jobs such as
+copying results across documents.
+\item  the workflow is barely recordable especially when it involves
+GUI (Graphical User Interface) operations, therefore it is dif-
+ficult to reproduce.
+\item a tiny change of the data source in the future will require the
+author(s) to go through the same procedure again, which can
+take nearly the same amount of time and effort.
+\item the analysis and writing are separate, so close attention has
+to be paid to the synchronization of the two parts.
+\end{compactitem}
+\vskip .1in
+In this book, dynamic documents refer to the kind of source documents containing both program code and narratives. Sometimes we may just call them source documents since ``dynamic'' may sound confusing and ambiguous to some people(no interactivity or animations).
+The book follows the convention :
+\begin{compactitem}
+\item \textbf{package} - bold text for package.
+\item \textit{plot()} - italics for function names.
+\item \texttt{apply(y,1,sum)} - typewrite font for inline text.
+\item \textsf{figure/foo.pdf} - sansseriff font for figures.
+\end{compactitem}
+\vskip .1in
+I will keep in mind these conventions when I do create my own RR(Reproducible Research) documents.
+
+\section*{Introduction}
+
+The basic idea behind dynamic documents stems from literate programming, a programming paradigm conceived by Donald Knuth (Knuth,
+1984). The original idea was mainly for writing software: mix the source
+code and documentation together; we can either extract the source code
+out (called tangle) or execute the code to get the compiled results (called
+weave). A dynamic document is not entirely different from a computer
+program: for a dynamic document, we need to run software packages
+to compile our ideas (often implemented as source code) into numeric
+or graphical output, and insert the output into our literal writings (like
+documentation).
+
+\vskip .1in
+
+Literate programming paradigm has two tasks:
+\begin{compactenum}
+\item write program code to do computing, and
+\item write narratives to explain what is being done by the program code.
+\end{compactenum}
+\vskip .1in
+
+The traditional approach to doing the second task is to write comments
+for the code, but comments are often limited in terms of expressing the
+full thoughts of the authors. Normally we write our ideas in a paper or
+a report instead of hundreds of lines of code comments. Technically, literate programming involves three steps:
+\vskip .1in
+
+\begin{compactenum}
+\item parse the source document and separate code from narratives.
+\item execute source code and return results.
+\item mix results from the source code with the original narratives.
+\end{compactenum}
+\vskip .1in
+
+These steps can be implemented in software packages, so the authors
+do not need to take care of these technical details. Instead, we only
+control what the output should look like.
+
+\section*{Reproducible Research}
+Dynamic report generation is a step towards RR, as the latter encompasses many more activities. If you had taken a particular seed for simulation, you can generate a dynamic report and be done with it. However may be the seed turned to be a lucky seed and the inferences are actually incorrect. These type of aspects cannot be ensured by merely creating a dynamic report. Hence one must carefully understand the limitations of Dynamic reports, i.e. what can be done via RR ? and what RR doesn't do ?
+
+\vskip .1in
+A few good practices for RR:
+\vskip .1in
+\begin{compactitem}
+\item Manage all source files under the same directory and use relative
+paths whenever possible - This was something that I was not doing at all.
+\item Do not change the working directory after the computing has started. I always do this and I realize now that it is a bad practice.
+\item Compile the documents in a clean R session.
+\item Avoid the commands that require human interaction. My analysis has never required human interaction.
+\item Avoid environment variables for data analysis. I have taken care of this, I think. But at least now I am consciously aware of it.
+\item Attach \textit{sessionInfo()} and instructions on how to compile the document - I have never done this till date.
+\end{compactitem}
+
+\vskip .1in
+
+I just got to know about \href{http://rpubs.com/}{(Rpubs)}. I hope to use in the days to come.
+
+\section*{A First Look}
+
+The knitr package is a general-purpose literate programming engine - it supports document formats including LATEX, HTML, Markdown, and programming languages such as R, Python, awk,
+C$++$, and shell scripts.
+
+
+Two basic examples are shown in this chapter, one that converts a \verb#.Rnw# in to \verb#.pdf# and the second a \verb#.Rmd# in to \verb#.html#. Just to understand how publishing works, I have posted it on \href{http://rpubs.com/safeisrisky/minimal}{(Rpubs)}.If you have a \texttt{R} code, you can quickly convert in to a report using the \textit{stitch()} command. Also given a \verb#.Rnw#, you can extract the code using \textit{purl()} command.
+
+
+\section*{Editors}
+This chapter gives information about various editors that can be configured so that working with \textbf{knitr} becomes a pleasant experience. It mentions RStudio, LyX,ESS, Tinn-R,Texmaker, Eclipse, TextMate,TEXShop, and Vim. I am happy to know that I can configure StatET to work with \textbf{knitr}. Will get it installed on StatET sometime soon.
+\vskip .1in
+
+\section*{Document Formats}
+The three components of \textbf{knitr} are
+\begin{compactitem}
+\item a source parser.
+\item a code evaluator.
+\item an output renderer.
+\end{compactitem}
+\vskip .1in
+
+The parser parses the source document and identifies computer code
+chunks as well as inline code from the document; the evaluator executes the code and returns results; the renderer formats the results from
+computing in an appropriate format, which will finally be combined
+with the original documentation.
+
+The pattern for beginning of a chunk in \verb#Rnw# is a regular expression
+<<echo=TRUE>>=
+all_patterns$rnw$chunk.begin
+@
+The chunk options can be any piece of \verb#R# code that is compatible with the kind of value that option expects. You can write a code that results in 
+\verb#TRUE/FALSE# and then assign to it option \texttt{eval}. This is very flexible as compared to \textbf{Sweave} where you can't use code to set option values. 
+
+\vskip .1in
+
+Chunk labels are supposed to be unique id's in a document, and
+they are mainly used to generate external files such as images and cache files. If two non-empty chunks have the same label, knitr will stop and emit an error message, because there is potential danger that the files generated from one chunk may override the other chunk. If we leave a chunk label empty, \textbf{knitr} will automatically generate a label of the form \texttt{unnamed-chunk-i}, where \texttt{i} is an incremental chunk number. One can also set chunk options globally, for example,\verb#opts_chunk$set (echo = FALSE)#, does not echo code for any chunk. You can override this setting for individual chunk though.
+\verb#<<>>=# denotes opening of a code chunk and \verb#@# denotes close of a code chunk and opening of documentation chunk.
+
+\vskip .1in
+
+In a \textbf{Sweave} document, the start and end of code syntax is \verb#<<*>>=# and and \verb#@#. Inline code syntax is \verb#\Sexpr{}#. In a mardown document, the start and end of code syntax is \verb#```{r *}# and and \verb#```#. Inline code syntax is \verb#`r x`#. The chapter talks about markdown language and praises its simplicity that anyone who has ever written an email can create a markdown document. It also goes on to list a host of derivative markdown packages that have appeared. RStudio used \textbf{markdown} package for its implementation.
+It also mentions \textbf{Pandoc}, that is usually called the \textit{swiss knife} of document conversion as it supports the conversion of markdown in to a host of formats.
+\textbf{knitr} will parse the code, be it a a chunk or inline fragment and then renders it to the appropriate output using various output hooks.
+<<>>=
+grep( "^render_", ls( "package:knitr"), value = TRUE)
+@
+\verb#render_sweave()# uses the default \textbf{Sweave} output whereas \verb#render_listings()# decorates the output. 
+
+So, based on type of output you want, you can configure the setting. This chapter explains the set of functions for various hooks such as \textit{plot}, \textit{chunk}, \textit{inline}, \textit{document} so that the hooks produce appropriate content for the chosen output format. There is also a \textit{spin()} function that takes plain simple R code that has been commented using roxygen and converts in to \LaTeX  or markdown document. 
+
+\section*{Text Output}
+\textbf{knitr} default rounding is 4 digits and numbers $> 10^{-5}$ will be shown in scientific notation.  Here are some of the main points mentioned in the context of text output. 
+\vskip .1in
+\begin{compactitem}
+\item \texttt{eval} - A boolean that controls whether the code should be shown asis or evaluated.
+\item \texttt{tidy} - Specify whether the code should be tidied up or not?
+<<tidy=FALSE>>=
+## tidy = FALSE
+for(k in 1:10){j= cos ( sin(k)*k^2)+3}
+@
+
+<<>>=
+for(k in 1:10){j= cos ( sin(k)*k^2)+3}
+@
+\item \texttt{tidy.opts} - width.cutoff to specify the max width.
+\item options in \texttt{tidy}
+<<>>=
+names( formals(formatR::tidy.source))
+@
+\item code decoration
+<<highlight=FALSE>>=
+#highlight = FALSE
+x <- rnorm(5)
+var(x)
+@
+
+<<>>=
+x <- rnorm(5)
+var(x)
+@
+\item A very painful problem is solved, i.e. copy pasting the code from RR documents
+Before \textbf{knitr} , I used to see code like this
+<<prompt=TRUE, comment=NA>>=
+x <- rnorm(5)
+var(x)
+@
+but with \textbf{knitr} the default is this 
+<<>>=
+x <- rnorm(5)
+var(x)
+@
+The output is put in as comments which makes it easy to copy paste the code. Superb feature. 
+\item font sizes - footnotesize, small, large, and Large, The default is normal size.
+<<size="footnotesize">>=
+#footnotesize
+x <- rnorm(5)
+@
+
+<<size="small">>=
+#small
+x <- rnorm(5)
+@
+
+<<>>=
+#normal
+x <- rnorm(5)
+@
+
+<<size="large">>=
+#large
+x <- rnorm(5)
+@
+
+<<size="Large">>=
+#Large
+x <- rnorm(5)
+@
+
+
+\item \texttt{echo} - Should the code chunk be shown. Note that this has nothing to do with the evaluation of the code chunk
+\item \texttt{results} - asis value for this option is very useful. When you need to produce tables using \verb#R#, you can use asis option so that raw output is dumped on to the document.
+\item \texttt{warnings/error/message} - All these can be set as a boolean value based on whether you want to see them in the report. They can also be set at a global level.
+\begin{verbatim}
+\Sexpr{''}<<>>=
+opts_chunk$set (warning = FALSE, message = FALSE)
+\Sexpr{''}@
+\end{verbatim}
+
+\item To stop on error, use \verb#opts_knit$set (stop_on_error = 2L)#. I gather from the author's blog that this option is deprecated. Wow! already things in the book are deprecated. I wonder how long will the functionality of the other options get deprecated. I hope not, for there is no point in wasting time learning and building muscle memory for things that go in to oblivion quickly. Anyway, now the preferred way to stop \textbf{knitr} is to use \texttt{error=FALSE}
+\item For tables, you can use \textbf{xtable} package and set \texttt{results="asis"}
+\item There are about 80 themes shipped via \textbf{knitr}
+<<>>=
+head(knit_theme$ get(), 20)
+@
+These themes work for \LaTeX and HTML output. The link on the web, \href{http://animation.r-forge.r-project.org/knitr/}{themes}, contains a preview of all themes.
+\end{compactitem}
+
+\section*{Graphics}
+Yippee!,finally reached the section for which I was looking forward to read. 
+Firstly no need of \textit{print(p)} to include a \textbf{ggplot(2)} visual.
+The default device for Rnw documents is PDF and for Rmd/Rhtml/Rrst documents, it is PNG because normally PDF does not work in HTML output. Some of the options for graphics output are
+\vskip .1in
+\begin{compactitem}
+\item \texttt{fig.width,fig.height}
+<<fig.width=7,fig.height=4,eval=FALSE>>=
+library(ggplot2)
+p <- qplot(carat, price, data = diamonds) + geom_hex()
+p 
+@
+\item \texttt{dev.args}
+<<dev.args=list(family="Bookman"),fig.width=4,fig.height=4,fig.align='center'>>=
+plot( rep(0:1, 10), pch = 1:20, col = 2, xlab = "xlab font" ,
+ylab = "ylab font" )
+mtext( "Bookman in the PDF device" , side = 3, cex = 1.2)
+text(6, 0.5, "Aa Bb Cc\nRr Ss Tt\nXx Yy Zz" , cex = 1.5)
+text(16, 0.5, "g" , cex = 6, col = 3)
+@
+\item \texttt{encoding}
+<<>>=
+pdf.options(encoding = "CP1250" )
+@
+
+\item \texttt{dingbats} - To reduce the size of scatter plots
+\item The great thing about \textbf{knitr} is that if the chunk has three plots, the plots are shown in the report with out any additional effort. This is unlike \textbf{Sweave} where only the recent plot is maintained. 
+
+<<fig.width=5, fig.height=5, out.width='.45\\linewidth', fig.show='hold'>>=
+## two plots side by side (option fig.show='hold')
+plot(cars)
+boxplot(cars$dist, xlab = "dist" )
+@
+
+\item One thing I am really impressed with graphics options is that I can do away with the \LaTeX code that I had to always put in after a \textbf{Sweave} code chunk. With the range of options available, I can forget about that task. 
+\item The fact that all the figures automatically go to a specific directory is so much nicer as it will not clutter the workspace of \verb#Rnw# files.
+\item code chunk name should be unique. I was following a crazy naming convention of using fig1, fig2 etc. in my \textbf{Sweave} code. Now I can just forget about all that and let \textbf{knitr} take care of all those things. Having said that, may be it makes sense to follow some naming convention for all the figures. I think I will specify \texttt{fig.ext} so that I know that a identify the figures for various chapters.
+\item \texttt{fig.env,fig.pos,fig.scap,fig.lp} - All these are built in as chunk options. So, there is no need to add  \LaTeX code.
+\item \texttt{out.width} - This controls the The \texttt{fig.width} and \texttt{fig.height} options specify the size of plots in the
+graphical device, and the real size in the output document can be different and can be specified by \texttt{out.width}
+
+\end{compactitem}
+
+\section*{Cache}
+This is another section of the book that I was eagerly awaiting to get to. Most of the times my \textbf{Sweave} documents take a long time to run, mainly because some of my code chunks take a long time to run. I knew there was a way around in \textbf{Sweave} to use caching but somehow never found time to learn about it. The other day I was working on a document and realized that there was no option but to cache various chunks. I used a funny work around, in fact an ugly work around of placing all code chunks in separate child \textbf{Sweave} files. Needless to say, organizing the whole thing was a nightmare. \textbf{knitr} promised a convenient way and indeed it is so easy to incorporate caching. 
+
+The basic ideas of caching is that a chunk will not be re-executed as long as it has not been modified since the last run, and old results will be directly loaded instead.
+\vskip .1in
+\begin{compactitem}
+\item \texttt{cache.path} - The directory where all the cache files will be stored
+\item There are some techniques mentioned in the book when a cache needs to be updated in the case of version change in \verb#R# or an external file change.
+\item The chapter explains the limitations of packages like \textbf{weaver} and \textbf{cacheSweave}, i.e. they do not save side effects. However \textbf{knitr} caches side effects like graphics output, loaded packages, random seed.
+\item By default the option to cache is set to false in every code chunk. To set this option globally one can use a code chunk with
+\begin{verbatim}
+\Sexpr{''}<<>>=
+ opts_chunk$set(cache.path="cache/graphics-)"
+\Sexpr{''}@
+\end{verbatim}
+
+\item code chunk dependency is another thing that one needs to be careful about. 
+<<chunkA>>=
+x <- 1
+<<chunkB, dependson="chunkA">>=
+y <- x + 2
+<<chunkC, dependson="chunkB">>
+y + 5
+@
+The dependency is necessary because \texttt{chunkC} uses the object y that
+was created in \texttt{chunkB}, and \texttt{chunkB} needs the value of x created in
+\texttt{chunkA}. When x in the first chunk is changed, the latter two chunks
+have to be updated accordingly. 
+\item Instead of explicitly specifying the dependency, there is also an experimental feature, i.e. setting \verb#autodep = TRUE#.  
+\end{compactitem}
+\vskip .1in
+Overall I am so happy after reading this chapter on caching. Now I can use all these features and save a ton of my time in running RR reports. 
+
+\section*{Cross Reference}
+This chapter begins with the idea of chunk reuse. One can reuse whole chunks  by following \texttt{ref} option
+The section on organizing child documents was very useful to me. 
+The inclusion of child \verb#Rnw# documents can be done by 
+\begin{verbatim}
+\Sexpr{''}<<D, child="chapt1.Rnw">=
+\Sexpr{''}@
+\end{verbatim}
+
+Learnt a way to apply preamble to the child documents
+\begin{verbatim}
+\Sexpr{''}<<parent, include=FALSE>=
+set_parent ( "master.Rnw" )
+\Sexpr{''}@
+\end{verbatim}
+
+All these aspects were very messy via \verb#Sweave#. Indeed \textbf{knitr} makes things in RR very appealing.
+
+
+\section*{Hooks}
+A hook is a userdefined R function to fulfill tasks beyond the default capability of \textbf{knitr}. This chapter deals with \textit{chunk} hooks.
+A chunk hook is a function stored in \texttt{knit\_hooks} and triggered by a
+custom chunk option.
+
+\vskip .1in 
+\begin{compactitem}
+\item Create chunk hooks
+A chunk hook can be arbitrarily named, as long as it does not clash with
+existing hooks. It can then be triggered by the label name 
+
+
+\begin{verbatim}
+\Sexpr{''}<<>=
+knit_hooks$set(margin = function(before, options, envir){
+  if(before)
+    par(mar=c(4,4,0.1,0.1)) else NULL  
+})
+\Sexpr{''}@
+
+\Sexpr{''}<<margin=TRUE>>=
+par(bg="gray")
+plot(1:10)
+\Sexpr{''}@
+\end{verbatim}
+
+
+\item Three arguments to the chunk - \textbf{before}(whether it is called before the chunk or after the chunk),\textbf{options}(list of chunk options), \textbf{envir}(environment in which the chunk exists)
+\item Hooks and chunk options - One can define the chunk hook to non \verb#NULL# globally
+<<>>=
+opts_chunk$set(margin = TRUE)
+@
+
+\item One can add arguments to chunk hook
+<<>>=
+knit_hooks$set (margin = function(before, options, envir) {
+if (before) {
+m <- options$margin
+if ( is.numeric(m) && length(m) == 4L) {
+par(mar = m)
+}
+} else NULL
+})
+@
+
+\item one can also write output from a chunk hook.
+\end{compactitem}
+
+Out of the all examples mentioned in this chapter, I think the most useful one for my work is cropping of a figure via chunk hook. 
+
+\section*{Language Engines}
+This chapter talks about using \textbf{knitr} with other languages such as 
+Python, Ruby, Haskell, awk/gawk, sed, shell scripts, Perl, SAS, TikZ, Graphviz
+and $C++$, etc. Not relevant for my future work and hence skipped the contents.
+
+
+\section*{Tricks and Solutions}
+The author says in his blog :
+\begin{quote}
+I do not have much to say about this book: almost everything in the book can be found in the online documentation, questions \& answers and the source code. The point of buying this book is perhaps you do not have time to read through all the two thousand questions and answers online, and I did that for you.
+\end{quote}
+This chapter is mainly a collection of important tricks that you can use for RR. Here are the some of tricks I will definitely use in my RR activity(the actual list in the book is long and the usage depends on purpose of RR one is creating):
+\begin{compactitem}
+\item using \texttt{option} aliasing :
+<<>>=
+set_alias (w = "fig.width" , h = "fig.height" )
+@
+\item using \texttt{opt\_template} : This is definitely a pain area for me that the package addresses. There are multiple times when you want to have different sizes for graphics and now you can do it conveniently as follows
+<<tidy.opts = list(width.cutoff = 60)>>=
+opts_template$set (
+fig.large = list(fig.width = 7, fig.height = 5),
+fig.small = list(fig.width = 3.5, fig.height = 3),
+fig.rk = list(fig.width = 4, fig.height = 4)
+)
+@
+
+\begin{verbatim}
+\Sexpr{''}<<opts.label= "fig.rk">>
+plot(1:10)
+\Sexpr{''}@
+\end{verbatim}
+
+\item Pushing all the code to the appendix. This is useful for some type RR documents where you want to put all the code in the appendix. neat hack!
+\item For the width of source code and text output, it is controlled by the
+global option width in \texttt{options()}. Alternatively use \verb#\lstset{breaklines=true}#. 
+\item Message colors
+\begin{verbatim}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\end{verbatim}
+\item Beamer : Beamer is a popular document class to create slides
+with \LaTeX. Using \textbf{knitr} in beamer slides is not very different from other
+\LaTeX documents; the only thing to keep in mind is that we need to
+specify the fragile option on beamer frames when we have verbatim
+output.
+\item suppress long output.
+\item publishing external images with the HTML file.
+\item extract source code.
+\item Dealing with reproducible simulation where there is a cache setting for a chunk.
+\item Turning package documentation in to html files.
+\end{compactitem}
+
+\section*{Publishing Reports}
+When your RR is ready for publication, it is always better to set \texttt{message} and \texttt{warning} to \verb#FALSE#. Using RStudio to produce pdf of html is via a simple click of a button. One can also use Pandoc to convert a markdown document to \LaTeX , HTML, rtf, epub, word doc, open document text etc. Basically pandoc is called swiss knife of document conversion and hence its always better to spend some time learning the basic aspects of it. The easiest way to create a HTML5 presentation is to create a markdown via RStudio and then run pandoc. This will be useful for those who want to embed code and text in to the presentation. These days it has become quite common for people to blog \verb#R# code and the chapter presents two ways to do it. One is via Jekyll and other via the usual wordpress route. The infra needed to push documents to either of these places is provided in \textbf{knitr}. The thing with wordpress is that modification is a pain once you have published. With Jekyl it is said that it is far easier to maintain. But tell me who has time to edit a blog post? Publishing itself takes time and I would rather do it on wordpress and be done with it. Well, may be if you want users to check in and correct your code, probably Jekyl is a good way to go. I have never hosted code on Jekyl. Will try it sometime soon.
+
+\section*{Applications}
+This chapter mentions four applications. First is \textit{Doing Homeworks}. Indeed with minimal configuration, one can turn in high quality document will all the code and narrative at one place. 
+The second application mentioned is \textit{websites and blogs} built on \textbf{knitr}. Third application is very interesting, \textit{creating vignettes}. As things stand, these are created using \textbf{Sweave} and there are no HTML vignettes on CRAN. Hopefully as things move, CRAN will allow HTML vignettes that are so much more convenient for bookmarking, sharing etc. The fourth application mentioned is \textit{writing books}. I think this is similar to what is happening in the IPython world where people are writing books in an ipython document and sharing it via sites like nbviewer. The chapter mentions a few sites where \textbf{knitr} has been used
+\begin{compactitem}
+\item \href{http://www3.amherst.edu/~nhorton/sleuth/}{Statistical Sleuth} 
+\item \href{http://www.theanalysisofdata.com/}{The Analysis of Data} - HTML and pdf versions
+\end{compactitem}
+
+\section*{Other Tools}
+This chapter talks about other tools such as \textbf{Sweave}, Dexy, IPython, Org\-mode. Since I have been using \textbf{Sweave} for some time, I found this chapter extremely useful as it lists down almost all the differences between \textbf{Sweave} and \textbf{knitr}. This kind of information all at one place is so useful. I mean I might have had to go through a ton of posts on stackoverflow or other places to get this info. Let me list down some of the main differences here. 
+\vskip .1in
+\begin{compactitem}
+\item \texttt{concordance} changed
+\item \texttt{keep.source} now becomes \texttt{tidy}
+\item \texttt{print} is redundant
+\item \texttt{strip.white} is dropped
+\item \texttt{prefix} is dropped
+\item \texttt{prefix.string} now becomes \texttt{fig.path} and has many more options
+\item \texttt{eps,pdf} options are dropped and new device option introduced for 20 graphical devices
+\item \texttt{fig} now becomes a set of options to control a ton of aspects of graphics. I love this part.
+\item \texttt{width, height} now become \texttt{fig.width} and \texttt{fig.height}
+\item \texttt{SweaveOpts} and \texttt{SweaveInput} deprecated.Instead one needs \verb#opts_chunk$set()# and \verb#child#
+\end{compactitem}
+\vskip .1in
+\newpage
+What are some of the problems that \textbf{knitr} solves ?
+
+\begin{compactitem}
+\item empty figure chunks give errors in \textbf{Sweave}. no longer in \textbf{knitr}
+\item no need to use the painful \texttt{print} command for image display.
+\item you can customize individual width of each figure in the output. In \textbf{Sweave} there is no straightforward way.
+\item multiple figures from one figure chunk do not work by default in \textbf{Sweave}.
+\item it is easy to produce HTML output.
+\end{compactitem}
+
+\section*{Takeaway}
+Imaging that you have been using a clunky and painful email service and suddenly one day you are shown gmail. You are thrilled. It's elegant, quick and has a ton intuitive features. I had the same experience with \textbf{Sweave} until I came across \textbf{knitr}. I am certain that this package will stand out as the goto package for literate programming for a very long time to come because it is elegant, quick and has features that you were always looking for, though not consciously. Should you read this book? Well, if you have the patience and time to go over the manual and a thousand posts from stackoverflow and other places to know the various features of the package, you don't need this book. However if you are like me who values content that is organized and contains all the important hacks from the package, this book is definitely worth it.
+
+
+
+
+
+
+
+
+\end{document}
+
