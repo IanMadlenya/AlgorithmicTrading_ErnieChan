@@ -20,6 +20,14 @@
 \fvset{listparameters={\setlength{\topsep}{0pt}}}
 \renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}}
 
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{prop}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{lem}[thm]{Lemma}
+  
+
 \begin{document}
 
 \maketitle
@@ -34,6 +42,12 @@ and provide some supporting R code to work with the book.
 
 \end{abstract}
 \pagebreak
+\section*{Summary}
+
+Need to write summary.
+
+\pagebreak
+
 \tableofcontents
 \newpage
 
@@ -48,6 +62,9 @@ library(R.matlab)
 library(pracma)
 library(vrtest)
 library(xtable)
+library(rootSolve)
+library(MASS)
+
 opts_template$set (
 fig.large = list(fig.width = 7, fig.height = 4),
 fig.small = list(fig.width = 3.5, fig.height = 3)
@@ -55,7 +72,7 @@ fig.small = list(fig.width = 3.5, fig.height = 3)
 @
 
 
-\section*{Summary}
+
 
 <<C0, child="C0.Rnw">>=
 @
@@ -81,8 +98,13 @@ fig.small = list(fig.width = 3.5, fig.height = 3)
 <<C7, child="C7.Rnw">>=
 @
 
-\section{Risk Management}
+<<C8, child="C8.Rnw">>=
+@
 
+\newpage
+
+\section*{Takeaway}
+The book discusses ``mean reverting strategies'' and ``momentum strategies'' threadbare. This book helped me tie a lot of loose ends of my thought process relating to mean reversion strategies. The practical insights in to Kelly criterion and Risk management makes this book a great resource for risk managers and prop traders.
 
 
 
